@@ -5,6 +5,21 @@ import { formatAccountingCurrency, formatAccountingMonth } from './helpers.js';
 import { SyncBadge } from './sync-badge.js';
 import { useAccountingTheme } from './use-accounting-theme.js';
 
+/** @typedef {import('@/types/accounting').SummaryCardData} SummaryCardData */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeColors} AccountingThemeColors */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeSpacing} AccountingThemeSpacing */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeRadius} AccountingThemeRadius */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeTypography} AccountingThemeTypography */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeShadow} AccountingThemeShadow */
+
+/**
+ * @param {{
+ *   label: string,
+ *   value: number,
+ *   tone: 'income' | 'expense',
+ *   styles: ReturnType<typeof createStyles>,
+ * }} props
+ */
 function Metric({ label, value, tone, styles }) {
   return (
     <View style={styles.metric}>
@@ -16,6 +31,11 @@ function Metric({ label, value, tone, styles }) {
   );
 }
 
+/**
+ * @param {SummaryCardData & {
+ *   balanceLabel?: string | undefined,
+ * }} props
+ */
 export function SummaryCard({
   month,
   balance,
@@ -51,6 +71,13 @@ export function SummaryCard({
   );
 }
 
+/**
+ * @param {AccountingThemeColors} colors
+ * @param {AccountingThemeSpacing} spacing
+ * @param {AccountingThemeRadius} radius
+ * @param {AccountingThemeTypography} typography
+ * @param {AccountingThemeShadow} shadow
+ */
 function createStyles(colors, spacing, radius, typography, shadow) {
   return StyleSheet.create({
     card: {

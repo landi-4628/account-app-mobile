@@ -43,9 +43,10 @@ const DEFAULT_ENTRY_TYPE = 'expense';
  * @typedef {{ type: 'setSelectedEntryType', entryType: EntryType }} SetSelectedEntryTypeAction
  * @typedef {{ type: 'setCurrentMonth', month: string }} SetCurrentMonthAction
  * @typedef {{ type: 'addTransaction', transaction: TransactionRecord }} AddTransactionAction
+ * @typedef {{ type: 'updateTransaction', transactionId: string, updates: Partial<TransactionRecord> }} UpdateTransactionAction
  * @typedef {{ type: 'deleteTransaction', transactionId: string }} DeleteTransactionAction
  * @typedef {{ type: 'updateTransactionSyncStatus', transactionId: string, syncStatus: import('../types/accounting').SyncStatus, updatedAt?: string | undefined }} UpdateTransactionSyncStatusAction
- * @typedef {OpenQuickAddAction | CloseQuickAddAction | SetSelectedEntryTypeAction | SetCurrentMonthAction | AddTransactionAction | DeleteTransactionAction | UpdateTransactionSyncStatusAction} MockAppAction
+ * @typedef {OpenQuickAddAction | CloseQuickAddAction | SetSelectedEntryTypeAction | SetCurrentMonthAction | AddTransactionAction | UpdateTransactionAction | DeleteTransactionAction | UpdateTransactionSyncStatusAction} MockAppAction
  */
 
 /**
@@ -383,6 +384,24 @@ export function mockAppReducer(state, action) {
         currentMonth: getMonthKey(action.transaction.transactionAt),
         transactions: sortTransactionsDescending([action.transaction, ...state.transactions]),
       };
+    case 'updateTransaction': {
+      let nextMonth = state.currentMonth;
+      const nextTransactions = state.transactions.map((transaction) => {
+        if (transaction.id !== action.transactionId) {
+          return transaction;
+        }
+
+        const nextTransaction = { ...transaction, ...action.updates };
+        nextMonth = getMonthKey(nextTransaction.transactionAt);
+        return nextTransaction;
+      });
+
+      return {
+        ...state,
+        currentMonth: nextMonth,
+        transactions: sortTransactionsDescending(nextTransactions),
+      };
+    }
     case 'deleteTransaction':
       return {
         ...state,

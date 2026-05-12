@@ -16,6 +16,7 @@ import {
  * @typedef {import('../types/accounting').LedgerAccount} LedgerAccount
  * @typedef {import('../types/accounting').LedgerCategory} LedgerCategory
  * @typedef {import('../types/accounting').MonthlyStatistics} MonthlyStatistics
+ * @typedef {import('../types/accounting').EditTransactionInput} EditTransactionInput
  * @typedef {import('../types/accounting').NewTransactionInput} NewTransactionInput
  * @typedef {import('../types/accounting').SyncSummary} SyncSummary
  * @typedef {import('../types/accounting').TransactionRecord} TransactionRecord
@@ -30,6 +31,7 @@ import {
  * @property {(entryType: EntryType) => void} setSelectedEntryType
  * @property {(month: string) => void} setCurrentMonth
  * @property {(input: NewTransactionInput & { id?: string | undefined, syncStatus?: import('../types/accounting').SyncStatus | undefined }) => void} addTransaction
+ * @property {(transactionId: string, updates: EditTransactionInput) => void} updateTransaction
  * @property {(transactionId: string) => void} deleteTransaction
  * @property {(transactionId: string, syncStatus: import('../types/accounting').SyncStatus, updatedAt?: string | undefined) => void} updateTransactionSyncStatus
  */
@@ -118,6 +120,12 @@ export function MockAppProvider({ children }) {
           dispatch({
             type: 'addTransaction',
             transaction: createTransactionRecord(input),
+          }),
+        updateTransaction: (transactionId, updates) =>
+          dispatch({
+            type: 'updateTransaction',
+            transactionId,
+            updates,
           }),
         deleteTransaction: (transactionId) =>
           dispatch({

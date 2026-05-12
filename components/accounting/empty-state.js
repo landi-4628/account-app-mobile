@@ -3,6 +3,19 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAccountingTheme } from './use-accounting-theme.js';
 
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeColors} AccountingThemeColors */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeSpacing} AccountingThemeSpacing */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeRadius} AccountingThemeRadius */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeTypography} AccountingThemeTypography */
+
+/**
+ * @param {{
+ *   title: string,
+ *   description?: string | undefined,
+ *   actionLabel?: string | undefined,
+ *   onActionPress?: (() => void) | undefined,
+ * }} props
+ */
 export function EmptyState({ title, description, actionLabel, onActionPress }) {
   const { colors, spacing, radius, typography } = useAccountingTheme();
   const styles = createStyles(colors, spacing, radius, typography);
@@ -28,6 +41,12 @@ export function EmptyState({ title, description, actionLabel, onActionPress }) {
   );
 }
 
+/**
+ * @param {AccountingThemeColors} colors
+ * @param {AccountingThemeSpacing} spacing
+ * @param {AccountingThemeRadius} radius
+ * @param {AccountingThemeTypography} typography
+ */
 function createStyles(colors, spacing, radius, typography) {
   return StyleSheet.create({
     container: {

@@ -118,6 +118,80 @@ test('adds a transaction and keeps month, account, and sync summaries aligned', 
   assert.equal(syncSummary.failedCount, 1);
 });
 
+test('updates a transaction in place and keeps month, account, and sync summaries aligned', () => {
+  const initialState = createInitialMockAppState();
+  const state = mockAppReducer(initialState, {
+    type: 'updateTransaction',
+    transactionId: 'tx-coffee',
+    updates: {
+      amount: 3600,
+      categoryId: 'cat-food',
+      note: 'Team coffee',
+      syncStatus: 'pending',
+    },
+  });
+  const monthData = selectCurrentMonthData(state);
+  const wechatAccount = selectAccountSummaries(state).find((account) => account.id === 'acc-wechat');
+  const syncSummary = selectSyncSummary(state);
+  const transaction = state.transactions.find((item) => item.id === 'tx-coffee');
+
+  assert.equal(transaction?.amount, 3600);
+  assert.equal(transaction?.categoryId, 'cat-food');
+  assert.equal(transaction?.note, 'Team coffee');
+  assert.equal(transaction?.syncStatus, 'pending');
+  assert.equal(monthData.summary.expense, 20280);
+  assert.equal(monthData.summary.balance, 1439720);
+  assert.equal(monthData.summary.pendingCount, 2);
+  assert.equal(monthData.summary.failedCount, 0);
+  assert.equal(wechatAccount?.currentBalance, 89500);
+  assert.equal(syncSummary.status, 'pending');
+  assert.equal(syncSummary.pendingCount, 2);
+  assert.equal(syncSummary.failedCount, 0);
+});
+
+test('moves an edited transaction across month and account boundaries and keeps summaries aligned', () => {
+  const initialState = createInitialMockAppState();
+  const state = mockAppReducer(initialState, {
+    type: 'updateTransaction',
+    transactionId: 'tx-coffee',
+    updates: {
+      amount: 5000,
+      categoryId: 'cat-food',
+      accountId: 'acc-cash',
+      note: 'April coffee',
+      transactionAt: '2026-04-20T10:05:00+08:00',
+      syncStatus: 'pending',
+    },
+  });
+  const monthData = selectCurrentMonthData(state);
+  const accountSummaries = selectAccountSummaries(state);
+  const cashAccount = accountSummaries.find((account) => account.id === 'acc-cash');
+  const wechatAccount = accountSummaries.find((account) => account.id === 'acc-wechat');
+  const syncSummary = selectSyncSummary(state);
+  const transaction = state.transactions.find((item) => item.id === 'tx-coffee');
+
+  assert.equal(state.currentMonth, '2026-04');
+  assert.equal(transaction?.transactionAt, '2026-04-20T10:05:00+08:00');
+  assert.equal(transaction?.accountId, 'acc-cash');
+  assert.equal(monthData.transactions[0].id, 'tx-coffee');
+  assert.equal(monthData.summary.income, 1180000);
+  assert.equal(monthData.summary.expense, 291400);
+  assert.equal(monthData.summary.balance, 888600);
+  assert.equal(monthData.summary.pendingCount, 1);
+  assert.equal(monthData.summary.failedCount, 0);
+  assert.equal(monthData.statistics.transactionCount, 19);
+  assert.deepEqual(monthData.statistics.expenseBreakdown, [
+    { categoryId: 'cat-groceries', amount: 124200, percent: 43 },
+    { categoryId: 'cat-food', amount: 101200, percent: 35 },
+    { categoryId: 'cat-commute', amount: 66000, percent: 23 },
+  ]);
+  assert.equal(cashAccount?.currentBalance, 70620);
+  assert.equal(wechatAccount?.currentBalance, 93100);
+  assert.equal(syncSummary.status, 'pending');
+  assert.equal(syncSummary.pendingCount, 2);
+  assert.equal(syncSummary.failedCount, 0);
+});
+
 test('deletes a transaction and updates derived balances and counts', () => {
   const initialState = createInitialMockAppState();
   const state = mockAppReducer(initialState, {

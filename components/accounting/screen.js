@@ -3,6 +3,19 @@ import { SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useAccountingTheme } from './use-accounting-theme.js';
 
+/** @typedef {import('react').ReactNode} ReactNode */
+/** @typedef {import('react-native').StyleProp<import('react-native').ViewStyle>} ViewStyleProp */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeColors} AccountingThemeColors */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeSpacing} AccountingThemeSpacing */
+
+/**
+ * @param {{
+ *   children?: ReactNode,
+ *   scrollable?: boolean | undefined,
+ *   contentContainerStyle?: ViewStyleProp,
+ *   style?: ViewStyleProp,
+ * }} props
+ */
 export function AccountingScreen({
   children,
   scrollable = true,
@@ -32,6 +45,10 @@ export function AccountingScreen({
   );
 }
 
+/**
+ * @param {AccountingThemeColors} colors
+ * @param {AccountingThemeSpacing} spacing
+ */
 function createStyles(colors, spacing) {
   return StyleSheet.create({
     safeArea: {

@@ -4,6 +4,23 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SyncBadge } from './sync-badge.js';
 import { useAccountingTheme } from './use-accounting-theme.js';
 
+/** @typedef {import('@/types/accounting').SyncStatus} SyncStatus */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeColors} AccountingThemeColors */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeSpacing} AccountingThemeSpacing */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeRadius} AccountingThemeRadius */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeTypography} AccountingThemeTypography */
+
+/**
+ * @param {{
+ *   status: SyncStatus,
+ *   pendingCount?: number | undefined,
+ *   failedCount?: number | undefined,
+ *   label?: string | undefined,
+ *   detail?: string | undefined,
+ *   actionLabel?: string | undefined,
+ *   onActionPress?: (() => void) | undefined,
+ * }} props
+ */
 export function SyncSummaryRow({
   status,
   pendingCount = 0,
@@ -39,6 +56,12 @@ export function SyncSummaryRow({
   );
 }
 
+/**
+ * @param {AccountingThemeColors} colors
+ * @param {AccountingThemeSpacing} spacing
+ * @param {AccountingThemeRadius} radius
+ * @param {AccountingThemeTypography} typography
+ */
 function createStyles(colors, spacing, radius, typography) {
   return StyleSheet.create({
     container: {

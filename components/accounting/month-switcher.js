@@ -4,6 +4,18 @@ import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { formatAccountingMonth } from './helpers.js';
 import { useAccountingTheme } from './use-accounting-theme.js';
 
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeColors} AccountingThemeColors */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeSpacing} AccountingThemeSpacing */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeRadius} AccountingThemeRadius */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeTypography} AccountingThemeTypography */
+
+/**
+ * @param {{
+ *   months: string[],
+ *   value: string,
+ *   onChange: (month: string) => void,
+ * }} props
+ */
 export function MonthSwitcher({ months, value, onChange }) {
   const { colors, spacing, radius, typography } = useAccountingTheme();
   const styles = createStyles(colors, spacing, radius, typography);
@@ -36,6 +48,12 @@ export function MonthSwitcher({ months, value, onChange }) {
   );
 }
 
+/**
+ * @param {AccountingThemeColors} colors
+ * @param {AccountingThemeSpacing} spacing
+ * @param {AccountingThemeRadius} radius
+ * @param {AccountingThemeTypography} typography
+ */
 function createStyles(colors, spacing, radius, typography) {
   return StyleSheet.create({
     container: {

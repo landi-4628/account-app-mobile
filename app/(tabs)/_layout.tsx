@@ -1,10 +1,17 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+
+const TAB_TITLES = {
+  index: '\u9996\u9875',
+  details: '\u660e\u7ec6',
+  statistics: '\u7edf\u8ba1',
+  profile: '\u6211\u7684',
+} as const;
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -19,28 +26,28 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: '首页',
+          title: TAB_TITLES.index,
           tabBarIcon: ({ color }) => <Ionicons size={24} name="home" color={color} />,
         }}
       />
       <Tabs.Screen
         name="details"
         options={{
-          title: '明细',
+          title: TAB_TITLES.details,
           tabBarIcon: ({ color }) => <Ionicons size={24} name="list" color={color} />,
         }}
       />
       <Tabs.Screen
         name="statistics"
         options={{
-          title: '统计',
+          title: TAB_TITLES.statistics,
           tabBarIcon: ({ color }) => <Ionicons size={24} name="bar-chart" color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: '我的',
+          title: TAB_TITLES.profile,
           tabBarIcon: ({ color }) => <Ionicons size={24} name="person" color={color} />,
         }}
       />

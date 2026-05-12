@@ -5,6 +5,21 @@ import { formatAccountingCurrency, formatTransactionDateTime } from './helpers.j
 import { SyncBadge } from './sync-badge.js';
 import { useAccountingTheme } from './use-accounting-theme.js';
 
+/** @typedef {import('@/types/accounting').TransactionRecord} TransactionRecord */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeColors} AccountingThemeColors */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeSpacing} AccountingThemeSpacing */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeRadius} AccountingThemeRadius */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeTypography} AccountingThemeTypography */
+
+/**
+ * @param {{
+ *   transaction: TransactionRecord,
+ *   categoryLabel: string,
+ *   accountLabel?: string | undefined,
+ *   timeZone?: string | undefined,
+ *   onPress?: ((transaction: TransactionRecord) => void) | undefined,
+ * }} props
+ */
 export function TransactionListItem({
   transaction,
   categoryLabel,
@@ -53,6 +68,12 @@ export function TransactionListItem({
   );
 }
 
+/**
+ * @param {AccountingThemeColors} colors
+ * @param {AccountingThemeSpacing} spacing
+ * @param {AccountingThemeRadius} radius
+ * @param {AccountingThemeTypography} typography
+ */
 function createStyles(colors, spacing, radius, typography) {
   return StyleSheet.create({
     container: {

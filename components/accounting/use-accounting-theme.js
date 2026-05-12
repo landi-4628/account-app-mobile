@@ -3,6 +3,34 @@ import { useMemo } from 'react';
 import { accountingTheme } from '@/constants/accounting-theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
+/** @typedef {typeof accountingTheme.colorSchemes.unspecified} AccountingThemeColors */
+/** @typedef {typeof accountingTheme.spacing} AccountingThemeSpacing */
+/** @typedef {typeof accountingTheme.radius} AccountingThemeRadius */
+/** @typedef {typeof accountingTheme.typography} AccountingThemeTypography */
+/** @typedef {typeof accountingTheme.shadow} AccountingThemeShadow */
+/**
+ * @typedef {{
+ *   colorScheme: 'light' | 'dark' | 'unspecified',
+ *   colors: AccountingThemeColors,
+ *   spacing: AccountingThemeSpacing,
+ *   radius: AccountingThemeRadius,
+ *   typography: AccountingThemeTypography,
+ *   shadow: AccountingThemeShadow,
+ * }} AccountingThemeTokens
+ */
+/**
+ * @typedef {{
+ *   success: { container: import('react-native').ViewStyle, text: import('react-native').TextStyle },
+ *   warning: { container: import('react-native').ViewStyle, text: import('react-native').TextStyle },
+ *   danger: { container: import('react-native').ViewStyle, text: import('react-native').TextStyle },
+ * }} SyncToneStyles
+ */
+
+/**
+ * @param {string} hex
+ * @param {number} alpha
+ * @returns {string}
+ */
 function hexToRgba(hex, alpha) {
   const normalized = hex.replace('#', '');
   const value = normalized.length === 3
@@ -18,6 +46,9 @@ function hexToRgba(hex, alpha) {
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
+/**
+ * @returns {AccountingThemeTokens}
+ */
 export function useAccountingTheme() {
   const colorScheme = useColorScheme() ?? 'unspecified';
   const colors = accountingTheme.colorSchemes[colorScheme] ?? accountingTheme.colorSchemes.unspecified;
@@ -35,6 +66,10 @@ export function useAccountingTheme() {
   );
 }
 
+/**
+ * @param {AccountingThemeColors} colors
+ * @returns {SyncToneStyles}
+ */
 export function getSyncToneStyles(colors) {
   return {
     success: {

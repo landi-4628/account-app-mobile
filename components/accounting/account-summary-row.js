@@ -4,6 +4,18 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { formatAccountingCurrency } from './helpers.js';
 import { useAccountingTheme } from './use-accounting-theme.js';
 
+/** @typedef {import('@/types/accounting').LedgerAccount} LedgerAccount */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeColors} AccountingThemeColors */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeSpacing} AccountingThemeSpacing */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeRadius} AccountingThemeRadius */
+/** @typedef {import('./use-accounting-theme.js').AccountingThemeTypography} AccountingThemeTypography */
+
+/**
+ * @param {{
+ *   account: LedgerAccount,
+ *   onPress?: ((account: LedgerAccount) => void) | undefined,
+ * }} props
+ */
 export function AccountSummaryRow({ account, onPress }) {
   const { colors, spacing, radius, typography } = useAccountingTheme();
   const styles = createStyles(colors, spacing, radius, typography);
@@ -27,6 +39,12 @@ export function AccountSummaryRow({ account, onPress }) {
   );
 }
 
+/**
+ * @param {AccountingThemeColors} colors
+ * @param {AccountingThemeSpacing} spacing
+ * @param {AccountingThemeRadius} radius
+ * @param {AccountingThemeTypography} typography
+ */
 function createStyles(colors, spacing, radius, typography) {
   return StyleSheet.create({
     container: {
