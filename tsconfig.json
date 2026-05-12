@@ -2,6 +2,8 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "allowJs": true,
+    "checkJs": true,
     "paths": {
       "@/*": [
         "./*"
@@ -11,6 +13,10 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    "constants/accounting-copy.js",
+    "constants/accounting-theme.js",
+    "data/mock/**/*.js",
+    "types/accounting.js",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ]
