@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { mockAccounts } from '../data/mock/mock-accounts.js';
 import { mockCategories } from '../data/mock/mock-categories.js';
 import {
@@ -12,32 +11,111 @@ import { mockUser } from '../data/mock/mock-user.js';
 
 const DEFAULT_ENTRY_TYPE = 'expense';
 
+/**
+ * @typedef {import('../types/accounting').EntryType} EntryType
+ * @typedef {import('../types/accounting').CategoryId} CategoryId
+ * @typedef {import('../types/accounting').LedgerAccount} LedgerAccount
+ * @typedef {import('../types/accounting').LedgerCategory} LedgerCategory
+ * @typedef {import('../types/accounting').TransactionRecord} TransactionRecord
+ * @typedef {import('../types/accounting').SummaryCardData} SummaryCardData
+ * @typedef {import('../types/accounting').CategoryBreakdownItem} CategoryBreakdownItem
+ * @typedef {import('../types/accounting').MonthlyStatistics} MonthlyStatistics
+ * @typedef {import('../types/accounting').SyncSummary} SyncSummary
+ */
+
+/**
+ * @typedef {object} MockAppState
+ * @property {string} currentMonth
+ * @property {EntryType} selectedEntryType
+ * @property {boolean} quickAddOpen
+ * @property {import('../types/accounting').AccountingUser} user
+ * @property {LedgerAccount[]} accounts
+ * @property {LedgerCategory[]} categories
+ * @property {TransactionRecord[]} transactions
+ * @property {TransactionRecord[]} seedTransactions
+ * @property {Record<string, MonthlyStatistics>} statisticsByMonth
+ * @property {string} syncUpdatedAt
+ */
+
+/**
+ * @typedef {{ type: 'openQuickAdd' }} OpenQuickAddAction
+ * @typedef {{ type: 'closeQuickAdd' }} CloseQuickAddAction
+ * @typedef {{ type: 'setSelectedEntryType', entryType: EntryType }} SetSelectedEntryTypeAction
+ * @typedef {{ type: 'setCurrentMonth', month: string }} SetCurrentMonthAction
+ * @typedef {{ type: 'addTransaction', transaction: TransactionRecord }} AddTransactionAction
+ * @typedef {{ type: 'deleteTransaction', transactionId: string }} DeleteTransactionAction
+ * @typedef {{ type: 'updateTransactionSyncStatus', transactionId: string, syncStatus: import('../types/accounting').SyncStatus, updatedAt?: string | undefined }} UpdateTransactionSyncStatusAction
+ * @typedef {OpenQuickAddAction | CloseQuickAddAction | SetSelectedEntryTypeAction | SetCurrentMonthAction | AddTransactionAction | DeleteTransactionAction | UpdateTransactionSyncStatusAction} MockAppAction
+ */
+
+/**
+ * @typedef {object} SummaryDelta
+ * @property {number} income
+ * @property {number} expense
+ * @property {number} pendingCount
+ * @property {number} failedCount
+ * @property {number} transactionCount
+ */
+
+/**
+ * @typedef {object} MonthDelta
+ * @property {SummaryDelta} summary
+ * @property {Map<CategoryId, number>} expenseAmounts
+ * @property {Map<CategoryId, number>} incomeAmounts
+ */
+
+/**
+ * @typedef {object} CurrentMonthData
+ * @property {string} month
+ * @property {TransactionRecord[]} transactions
+ * @property {SummaryCardData} summary
+ * @property {MonthlyStatistics} statistics
+ * @property {string[]} availableMonths
+ */
+
+/** @returns {LedgerAccount[]} */
 function cloneAccounts() {
   return mockAccounts.map((account) => ({ ...account }));
 }
 
+/** @returns {LedgerCategory[]} */
 function cloneCategories() {
   return mockCategories.map((category) => ({ ...category }));
 }
 
+/** @returns {TransactionRecord[]} */
 function cloneTransactions() {
   return mockTransactions.map((transaction) => ({ ...transaction }));
 }
 
+/** @returns {Record<string, MonthlyStatistics>} */
 function cloneStatisticsByMonth() {
   return Object.fromEntries(
     Object.entries(mockStatisticsByMonth).map(([month, stats]) => [month, structuredClone(stats)])
   );
 }
 
+/**
+ * @param {string} transactionAt
+ * @returns {string}
+ */
 function getMonthKey(transactionAt) {
   return transactionAt.slice(0, 7);
 }
 
+/**
+ * @param {TransactionRecord[]} transactions
+ * @returns {TransactionRecord[]}
+ */
 function sortTransactionsDescending(transactions) {
   return [...transactions].sort((left, right) => right.transactionAt.localeCompare(left.transactionAt));
 }
 
+/**
+ * @param {number} pendingCount
+ * @param {number} failedCount
+ * @returns {import('../types/accounting').SyncStatus}
+ */
 function getSyncStatus(pendingCount, failedCount) {
   if (failedCount > 0) {
     return 'failed';
@@ -50,15 +128,85 @@ function getSyncStatus(pendingCount, failedCount) {
   return 'synced';
 }
 
-function buildBreakdown(transactions, entryType) {
-  const filtered = transactions.filter((transaction) => transaction.type === entryType);
-  const total = filtered.reduce((sum, transaction) => sum + transaction.amount, 0);
-  const grouped = filtered.reduce((map, transaction) => {
-    map.set(transaction.categoryId, (map.get(transaction.categoryId) ?? 0) + transaction.amount);
+/**
+ * @param {string} month
+ * @returns {SummaryCardData}
+ */
+function createEmptySummary(month) {
+  return {
+    month,
+    income: 0,
+    expense: 0,
+    balance: 0,
+    syncStatus: 'synced',
+    pendingCount: 0,
+    failedCount: 0,
+  };
+}
+
+/**
+ * @returns {SummaryDelta}
+ */
+function createEmptySummaryDelta() {
+  return {
+    income: 0,
+    expense: 0,
+    pendingCount: 0,
+    failedCount: 0,
+    transactionCount: 0,
+  };
+}
+
+/**
+ * @param {string} month
+ * @returns {MonthlyStatistics}
+ */
+function createEmptyStatistics(month) {
+  return {
+    month,
+    summaryCard: createEmptySummary(month),
+    expenseBreakdown: [],
+    incomeBreakdown: [],
+    transactionCount: 0,
+    pendingCount: 0,
+  };
+}
+
+/**
+ * @param {CategoryBreakdownItem[]} items
+ * @returns {Map<CategoryId, number>}
+ */
+function breakdownItemsToMap(items) {
+  return items.reduce((map, item) => {
+    map.set(item.categoryId, item.amount);
     return map;
   }, new Map());
+}
 
-  return [...grouped.entries()]
+/**
+ * @param {Map<CategoryId, number>} amounts
+ * @param {Map<CategoryId, number>} delta
+ */
+function applyBreakdownDelta(amounts, delta) {
+  delta.forEach((amount, categoryId) => {
+    const nextAmount = (amounts.get(categoryId) ?? 0) + amount;
+
+    if (nextAmount <= 0) {
+      amounts.delete(categoryId);
+      return;
+    }
+
+    amounts.set(categoryId, nextAmount);
+  });
+}
+
+/**
+ * @param {Map<CategoryId, number>} amounts
+ * @param {number} total
+ * @returns {CategoryBreakdownItem[]}
+ */
+function buildBreakdownFromMap(amounts, total) {
+  return [...amounts.entries()]
     .map(([categoryId, amount]) => ({
       categoryId,
       amount,
@@ -67,7 +215,139 @@ function buildBreakdown(transactions, entryType) {
     .sort((left, right) => right.amount - left.amount);
 }
 
+/**
+ * @param {SummaryDelta} summary
+ * @param {Map<CategoryId, number>} breakdown
+ * @param {TransactionRecord | undefined} transaction
+ * @param {1 | -1} direction
+ */
+function applyTransactionDelta(summary, breakdown, transaction, direction) {
+  if (!transaction) {
+    return;
+  }
+
+  if (transaction.type === 'income') {
+    summary.income += transaction.amount * direction;
+  } else {
+    summary.expense += transaction.amount * direction;
+  }
+
+  summary.transactionCount += direction;
+
+  if (transaction.syncStatus === 'pending') {
+    summary.pendingCount += direction;
+  }
+
+  if (transaction.syncStatus === 'failed') {
+    summary.failedCount += direction;
+  }
+
+  const nextAmount = (breakdown.get(transaction.categoryId) ?? 0) + transaction.amount * direction;
+
+  if (nextAmount === 0) {
+    breakdown.delete(transaction.categoryId);
+    return;
+  }
+
+  breakdown.set(transaction.categoryId, nextAmount);
+}
+
+/**
+ * @param {MockAppState} state
+ * @param {string} month
+ * @returns {MonthDelta}
+ */
+function calculateMonthDelta(state, month) {
+  /** @type {Map<string, TransactionRecord>} */
+  const currentById = new Map();
+  /** @type {Map<string, TransactionRecord>} */
+  const seedById = new Map();
+
+  state.transactions.forEach((transaction) => {
+    if (getMonthKey(transaction.transactionAt) === month) {
+      currentById.set(transaction.id, transaction);
+    }
+  });
+
+  state.seedTransactions.forEach((transaction) => {
+    if (getMonthKey(transaction.transactionAt) === month) {
+      seedById.set(transaction.id, transaction);
+    }
+  });
+
+  const summary = createEmptySummaryDelta();
+  /** @type {Map<CategoryId, number>} */
+  const expenseAmounts = new Map();
+  /** @type {Map<CategoryId, number>} */
+  const incomeAmounts = new Map();
+
+  new Set([...seedById.keys(), ...currentById.keys()]).forEach((transactionId) => {
+    const seedTransaction = seedById.get(transactionId);
+    const currentTransaction = currentById.get(transactionId);
+
+    applyTransactionDelta(
+      summary,
+      seedTransaction?.type === 'income' ? incomeAmounts : expenseAmounts,
+      seedTransaction,
+      -1
+    );
+    applyTransactionDelta(
+      summary,
+      currentTransaction?.type === 'income' ? incomeAmounts : expenseAmounts,
+      currentTransaction,
+      1
+    );
+  });
+
+  return {
+    summary,
+    expenseAmounts,
+    incomeAmounts,
+  };
+}
+
+/**
+ * @param {MockAppState} state
+ * @param {string} month
+ * @returns {MonthlyStatistics}
+ */
+function mergeMonthStatistics(state, month) {
+  const baseStatistics = state.statisticsByMonth[month]
+    ? structuredClone(state.statisticsByMonth[month])
+    : createEmptyStatistics(month);
+  const delta = calculateMonthDelta(state, month);
+  const income = baseStatistics.summaryCard.income + delta.summary.income;
+  const expense = baseStatistics.summaryCard.expense + delta.summary.expense;
+  const pendingCount = Math.max(0, baseStatistics.summaryCard.pendingCount + delta.summary.pendingCount);
+  const failedCount = Math.max(0, baseStatistics.summaryCard.failedCount + delta.summary.failedCount);
+  const expenseAmounts = breakdownItemsToMap(baseStatistics.expenseBreakdown);
+  const incomeAmounts = breakdownItemsToMap(baseStatistics.incomeBreakdown);
+
+  applyBreakdownDelta(expenseAmounts, delta.expenseAmounts);
+  applyBreakdownDelta(incomeAmounts, delta.incomeAmounts);
+
+  return {
+    month,
+    summaryCard: {
+      month,
+      income,
+      expense,
+      balance: income - expense,
+      syncStatus: getSyncStatus(pendingCount, failedCount),
+      pendingCount,
+      failedCount,
+    },
+    expenseBreakdown: buildBreakdownFromMap(expenseAmounts, expense),
+    incomeBreakdown: buildBreakdownFromMap(incomeAmounts, income),
+    transactionCount: Math.max(0, baseStatistics.transactionCount + delta.summary.transactionCount),
+    pendingCount,
+  };
+}
+
+/** @returns {MockAppState} */
 export function createInitialMockAppState() {
+  const seedTransactions = cloneTransactions();
+
   return {
     currentMonth: mockCurrentMonth,
     selectedEntryType: DEFAULT_ENTRY_TYPE,
@@ -75,12 +355,18 @@ export function createInitialMockAppState() {
     user: { ...mockUser },
     accounts: cloneAccounts(),
     categories: cloneCategories(),
-    transactions: cloneTransactions(),
+    transactions: seedTransactions.map((transaction) => ({ ...transaction })),
+    seedTransactions,
     statisticsByMonth: cloneStatisticsByMonth(),
     syncUpdatedAt: mockSyncSummary.updatedAt,
   };
 }
 
+/**
+ * @param {MockAppState} state
+ * @param {MockAppAction} action
+ * @returns {MockAppState}
+ */
 export function mockAppReducer(state, action) {
   switch (action.type) {
     case 'openQuickAdd':
@@ -119,6 +405,10 @@ export function mockAppReducer(state, action) {
   }
 }
 
+/**
+ * @param {MockAppState} state
+ * @returns {string[]}
+ */
 export function selectAvailableMonths(state) {
   const months = new Set(Object.keys(state.statisticsByMonth));
 
@@ -129,58 +419,36 @@ export function selectAvailableMonths(state) {
   return [...months].sort((left, right) => right.localeCompare(left));
 }
 
+/**
+ * @param {MockAppState} state
+ * @returns {TransactionRecord[]}
+ */
 export function selectCurrentMonthTransactions(state) {
   return sortTransactionsDescending(
     state.transactions.filter((transaction) => getMonthKey(transaction.transactionAt) === state.currentMonth)
   );
 }
 
+/**
+ * @param {MockAppState} state
+ * @returns {SummaryCardData}
+ */
 export function selectCurrentMonthSummary(state) {
-  const transactions = selectCurrentMonthTransactions(state);
-  const fallback = state.statisticsByMonth[state.currentMonth]?.summaryCard;
-
-  if (transactions.length === 0 && fallback) {
-    return { ...fallback };
-  }
-
-  const income = transactions
-    .filter((transaction) => transaction.type === 'income')
-    .reduce((sum, transaction) => sum + transaction.amount, 0);
-  const expense = transactions
-    .filter((transaction) => transaction.type === 'expense')
-    .reduce((sum, transaction) => sum + transaction.amount, 0);
-  const pendingCount = transactions.filter((transaction) => transaction.syncStatus === 'pending').length;
-  const failedCount = transactions.filter((transaction) => transaction.syncStatus === 'failed').length;
-
-  return {
-    month: state.currentMonth,
-    income,
-    expense,
-    balance: income - expense,
-    syncStatus: getSyncStatus(pendingCount, failedCount),
-    pendingCount,
-    failedCount,
-  };
+  return mergeMonthStatistics(state, state.currentMonth).summaryCard;
 }
 
+/**
+ * @param {MockAppState} state
+ * @returns {MonthlyStatistics}
+ */
 export function selectCurrentMonthStatistics(state) {
-  const transactions = selectCurrentMonthTransactions(state);
-  const fallback = state.statisticsByMonth[state.currentMonth];
-
-  if (transactions.length === 0 && fallback) {
-    return structuredClone(fallback);
-  }
-
-  return {
-    month: state.currentMonth,
-    summaryCard: selectCurrentMonthSummary(state),
-    expenseBreakdown: buildBreakdown(transactions, 'expense'),
-    incomeBreakdown: buildBreakdown(transactions, 'income'),
-    transactionCount: transactions.length,
-    pendingCount: transactions.filter((transaction) => transaction.syncStatus === 'pending').length,
-  };
+  return mergeMonthStatistics(state, state.currentMonth);
 }
 
+/**
+ * @param {MockAppState} state
+ * @returns {LedgerAccount[]}
+ */
 export function selectAccountSummaries(state) {
   return state.accounts.map((account) => {
     const delta = state.transactions.reduce((sum, transaction) => {
@@ -198,6 +466,10 @@ export function selectAccountSummaries(state) {
   });
 }
 
+/**
+ * @param {MockAppState} state
+ * @returns {SyncSummary}
+ */
 export function selectSyncSummary(state) {
   const pendingCount = state.transactions.filter((transaction) => transaction.syncStatus === 'pending').length;
   const failedCount = state.transactions.filter((transaction) => transaction.syncStatus === 'failed').length;
@@ -210,6 +482,10 @@ export function selectSyncSummary(state) {
   };
 }
 
+/**
+ * @param {MockAppState} state
+ * @returns {CurrentMonthData}
+ */
 export function selectCurrentMonthData(state) {
   return {
     month: state.currentMonth,
@@ -220,14 +496,25 @@ export function selectCurrentMonthData(state) {
   };
 }
 
+/**
+ * @param {MockAppState} state
+ * @param {EntryType} entryType
+ * @returns {LedgerCategory[]}
+ */
 export function selectCategoriesByType(state, entryType) {
   return state.categories.filter((category) => category.type === entryType);
 }
 
+/**
+ * @param {MockAppState} state
+ * @param {string} transactionId
+ * @returns {TransactionRecord | null}
+ */
 export function selectTransactionById(state, transactionId) {
   return state.transactions.find((transaction) => transaction.id === transactionId) ?? null;
 }
 
+/** @returns {MonthlyStatistics[]} */
 export function selectSeededMonthlyStatistics() {
   return mockMonthlyStatistics.map((item) => structuredClone(item));
 }

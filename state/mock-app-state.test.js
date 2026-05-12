@@ -57,6 +57,39 @@ test('switches month using seeded statistics even when that month has no transac
   assert.equal(monthData.transactions.length, 0);
 });
 
+test('merges April seeded baseline with the first live transaction instead of replacing it', () => {
+  const initialState = createInitialMockAppState();
+  const state = mockAppReducer(initialState, {
+    type: 'addTransaction',
+    transaction: {
+      id: 'tx-april-test-book',
+      type: 'expense',
+      amount: 5000,
+      categoryId: 'cat-food',
+      accountId: 'acc-cash',
+      note: 'April test',
+      transactionAt: '2026-04-18T09:30:00+08:00',
+      syncStatus: 'pending',
+    },
+  });
+  const monthData = selectCurrentMonthData(state);
+
+  assert.equal(state.currentMonth, '2026-04');
+  assert.equal(monthData.summary.income, 1180000);
+  assert.equal(monthData.summary.expense, 291400);
+  assert.equal(monthData.summary.balance, 888600);
+  assert.equal(monthData.summary.pendingCount, 1);
+  assert.equal(monthData.summary.failedCount, 0);
+  assert.equal(monthData.statistics.transactionCount, 19);
+  assert.deepEqual(monthData.statistics.expenseBreakdown, [
+    { categoryId: 'cat-groceries', amount: 124200, percent: 43 },
+    { categoryId: 'cat-food', amount: 101200, percent: 35 },
+    { categoryId: 'cat-commute', amount: 66000, percent: 23 },
+  ]);
+  assert.equal(monthData.transactions.length, 1);
+  assert.equal(monthData.transactions[0].id, 'tx-april-test-book');
+});
+
 test('adds a transaction and keeps month, account, and sync summaries aligned', () => {
   const initialState = createInitialMockAppState();
   const state = mockAppReducer(initialState, {
