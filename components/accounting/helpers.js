@@ -1,6 +1,4 @@
 const currencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'CNY',
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
@@ -11,20 +9,14 @@ const monthFormatter = new Intl.DateTimeFormat('en-US', {
   timeZone: 'UTC',
 });
 
-const transactionFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-});
-
 /**
  * @param {number} amount
  * @returns {string}
  */
 export function formatAccountingCurrency(amount) {
-  return currencyFormatter.format(amount / 100).replace('CN¥', '¥');
+  const sign = amount < 0 ? '-' : '';
+
+  return `${sign}\u00A5${currencyFormatter.format(Math.abs(amount) / 100)}`;
 }
 
 /**
@@ -40,10 +32,19 @@ export function formatAccountingMonth(month) {
 
 /**
  * @param {string} value
+ * @param {string=} timeZone
  * @returns {string}
  */
-export function formatTransactionDateTime(value) {
-  const parts = transactionFormatter.formatToParts(new Date(value));
+export function formatTransactionDateTime(value, timeZone = 'UTC') {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone,
+  });
+  const parts = formatter.formatToParts(new Date(value));
   const month = parts.find((part) => part.type === 'month')?.value ?? '';
   const day = parts.find((part) => part.type === 'day')?.value ?? '';
   const hour = parts.find((part) => part.type === 'hour')?.value ?? '';

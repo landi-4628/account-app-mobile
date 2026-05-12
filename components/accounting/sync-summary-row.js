@@ -1,8 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { accountingLightColors, accountingTheme } from '@/constants/accounting-theme';
 import { SyncBadge } from './sync-badge.js';
+import { useAccountingTheme } from './use-accounting-theme.js';
 
 export function SyncSummaryRow({
   status,
@@ -13,6 +13,9 @@ export function SyncSummaryRow({
   actionLabel,
   onActionPress,
 }) {
+  const { colors, spacing, radius, typography } = useAccountingTheme();
+  const styles = createStyles(colors, spacing, radius, typography);
+
   return (
     <View style={styles.container}>
       <View style={styles.copy}>
@@ -36,37 +39,39 @@ export function SyncSummaryRow({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: accountingTheme.spacing.md,
-    borderRadius: accountingTheme.radius.md,
-    borderWidth: 1,
-    borderColor: accountingLightColors.border,
-    backgroundColor: accountingLightColors.surface,
-    padding: accountingTheme.spacing.md,
-  },
-  copy: {
-    flex: 1,
-    gap: 8,
-  },
-  detail: {
-    fontSize: accountingTheme.typography.body,
-    color: accountingLightColors.textSecondary,
-  },
-  action: {
-    minHeight: 32,
-    justifyContent: 'center',
-    paddingHorizontal: accountingTheme.spacing.sm,
-  },
-  actionPressed: {
-    opacity: 0.8,
-  },
-  actionLabel: {
-    fontSize: accountingTheme.typography.body,
-    fontWeight: '600',
-    color: accountingLightColors.brand,
-  },
-});
+function createStyles(colors, spacing, radius, typography) {
+  return StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.md,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      padding: spacing.md,
+    },
+    copy: {
+      flex: 1,
+      gap: 8,
+    },
+    detail: {
+      fontSize: typography.body,
+      color: colors.textSecondary,
+    },
+    action: {
+      minHeight: 32,
+      justifyContent: 'center',
+      paddingHorizontal: spacing.sm,
+    },
+    actionPressed: {
+      opacity: 0.8,
+    },
+    actionLabel: {
+      fontSize: typography.body,
+      fontWeight: '600',
+      color: colors.brand,
+    },
+  });
+}

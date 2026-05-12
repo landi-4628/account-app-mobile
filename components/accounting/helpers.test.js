@@ -9,16 +9,19 @@ import {
 } from './helpers.js';
 
 test('formats accounting currency in CNY with sign support', () => {
-  assert.equal(formatAccountingCurrency(1440520), '¥14,405.20');
-  assert.equal(formatAccountingCurrency(-3200), '-¥32.00');
+  assert.equal(formatAccountingCurrency(1440520), '\u00A514,405.20');
+  assert.equal(formatAccountingCurrency(-3200), '-\u00A532.00');
 });
 
 test('formats ISO month keys into a compact label', () => {
   assert.equal(formatAccountingMonth('2026-05'), 'May 2026');
 });
 
-test('formats transaction timestamps into a readable local label', () => {
-  assert.equal(formatTransactionDateTime('2026-05-11T12:30:00+08:00'), 'May 11, 12:30');
+test('formats transaction timestamps in the supplied ledger timezone', () => {
+  const value = '2026-05-11T12:30:00+08:00';
+
+  assert.equal(formatTransactionDateTime(value, 'Asia/Shanghai'), 'May 11, 12:30');
+  assert.equal(formatTransactionDateTime(value, 'UTC'), 'May 11, 04:30');
 });
 
 test('maps sync states to reusable visual metadata', () => {

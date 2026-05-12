@@ -1,11 +1,11 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { accountingLightColors, accountingTheme } from '@/constants/accounting-theme';
 import { formatAccountingCurrency, formatAccountingMonth } from './helpers.js';
 import { SyncBadge } from './sync-badge.js';
+import { useAccountingTheme } from './use-accounting-theme.js';
 
-function Metric({ label, value, tone }) {
+function Metric({ label, value, tone, styles }) {
   return (
     <View style={styles.metric}>
       <Text style={styles.metricLabel}>{label}</Text>
@@ -26,6 +26,9 @@ export function SummaryCard({
   failedCount = 0,
   balanceLabel = 'Net balance',
 }) {
+  const { colors, spacing, radius, typography, shadow } = useAccountingTheme();
+  const styles = createStyles(colors, spacing, radius, typography, shadow);
+
   return (
     <View style={styles.card}>
       <View style={styles.header}>
@@ -41,67 +44,69 @@ export function SummaryCard({
       </View>
       <Text style={styles.balanceValue}>{formatAccountingCurrency(balance)}</Text>
       <View style={styles.metrics}>
-        <Metric label="Income" value={income} tone="income" />
-        <Metric label="Expense" value={expense} tone="expense" />
+        <Metric label="Income" value={income} tone="income" styles={styles} />
+        <Metric label="Expense" value={expense} tone="expense" styles={styles} />
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    borderRadius: accountingTheme.radius.lg,
-    backgroundColor: accountingLightColors.surface,
-    padding: accountingTheme.spacing.md,
-    gap: accountingTheme.spacing.md,
-    ...accountingTheme.shadow.card,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: accountingTheme.spacing.md,
-  },
-  headerCopy: {
-    flex: 1,
-    gap: 4,
-  },
-  month: {
-    fontSize: accountingTheme.typography.body,
-    fontWeight: '600',
-    color: accountingLightColors.textSecondary,
-  },
-  balanceLabel: {
-    fontSize: accountingTheme.typography.body,
-    color: accountingLightColors.textMuted,
-  },
-  balanceValue: {
-    fontSize: accountingTheme.typography.headline,
-    fontWeight: '700',
-    color: accountingLightColors.text,
-  },
-  metrics: {
-    flexDirection: 'row',
-    gap: accountingTheme.spacing.md,
-  },
-  metric: {
-    flex: 1,
-    borderRadius: accountingTheme.radius.md,
-    backgroundColor: accountingLightColors.surfaceAlt,
-    padding: accountingTheme.spacing.sm,
-    gap: 6,
-  },
-  metricLabel: {
-    fontSize: accountingTheme.typography.caption,
-    color: accountingLightColors.textMuted,
-  },
-  metricValue: {
-    fontSize: accountingTheme.typography.bodyLarge,
-    fontWeight: '700',
-  },
-  income: {
-    color: accountingLightColors.income,
-  },
-  expense: {
-    color: accountingLightColors.expense,
-  },
-});
+function createStyles(colors, spacing, radius, typography, shadow) {
+  return StyleSheet.create({
+    card: {
+      borderRadius: radius.lg,
+      backgroundColor: colors.surface,
+      padding: spacing.md,
+      gap: spacing.md,
+      ...shadow.card,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: spacing.md,
+    },
+    headerCopy: {
+      flex: 1,
+      gap: 4,
+    },
+    month: {
+      fontSize: typography.body,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    balanceLabel: {
+      fontSize: typography.body,
+      color: colors.textMuted,
+    },
+    balanceValue: {
+      fontSize: typography.headline,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    metrics: {
+      flexDirection: 'row',
+      gap: spacing.md,
+    },
+    metric: {
+      flex: 1,
+      borderRadius: radius.md,
+      backgroundColor: colors.surfaceAlt,
+      padding: spacing.sm,
+      gap: 6,
+    },
+    metricLabel: {
+      fontSize: typography.caption,
+      color: colors.textMuted,
+    },
+    metricValue: {
+      fontSize: typography.bodyLarge,
+      fontWeight: '700',
+    },
+    income: {
+      color: colors.income,
+    },
+    expense: {
+      color: colors.expense,
+    },
+  });
+}

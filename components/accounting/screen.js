@@ -1,7 +1,7 @@
 import React from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
 
-import { accountingTheme, accountingLightColors } from '@/constants/accounting-theme';
+import { useAccountingTheme } from './use-accounting-theme.js';
 
 export function AccountingScreen({
   children,
@@ -9,6 +9,8 @@ export function AccountingScreen({
   contentContainerStyle,
   style,
 }) {
+  const { colors, spacing } = useAccountingTheme();
+  const styles = createStyles(colors, spacing);
   const content = (
     <View style={[styles.content, contentContainerStyle]}>
       {children}
@@ -30,19 +32,21 @@ export function AccountingScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: accountingLightColors.background,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  content: {
-    flexGrow: 1,
-    paddingHorizontal: accountingTheme.spacing.md,
-    paddingTop: accountingTheme.spacing.md,
-    paddingBottom: accountingTheme.spacing.xl,
-    gap: accountingTheme.spacing.lg,
-  },
-});
+function createStyles(colors, spacing) {
+  return StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    scrollContent: {
+      flexGrow: 1,
+    },
+    content: {
+      flexGrow: 1,
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.xl,
+      gap: spacing.lg,
+    },
+  });
+}

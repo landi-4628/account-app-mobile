@@ -1,16 +1,19 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { accountingLightColors, accountingTheme } from '@/constants/accounting-theme';
 import { formatAccountingCurrency, formatTransactionDateTime } from './helpers.js';
 import { SyncBadge } from './sync-badge.js';
+import { useAccountingTheme } from './use-accounting-theme.js';
 
 export function TransactionListItem({
   transaction,
   categoryLabel,
   accountLabel,
+  timeZone = 'UTC',
   onPress,
 }) {
+  const { colors, spacing, radius, typography } = useAccountingTheme();
+  const styles = createStyles(colors, spacing, radius, typography);
   const amountStyle = transaction.type === 'income' ? styles.income : styles.expense;
   const amountPrefix = transaction.type === 'income' ? '+' : '-';
 
@@ -27,12 +30,12 @@ export function TransactionListItem({
               {categoryLabel}
             </Text>
             <Text numberOfLines={1} style={styles.subtitle}>
-              {[accountLabel, formatTransactionDateTime(transaction.transactionAt)].filter(Boolean).join('  ')}
+              {[accountLabel, formatTransactionDateTime(transaction.transactionAt, timeZone)].filter(Boolean).join('  ')}
             </Text>
           </View>
           <Text style={[styles.amount, amountStyle]}>
             {amountPrefix}
-            {formatAccountingCurrency(transaction.amount).replace('-', '')}
+            {formatAccountingCurrency(transaction.amount)}
           </Text>
         </View>
         <View style={styles.bottomRow}>
@@ -50,73 +53,75 @@ export function TransactionListItem({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: accountingTheme.spacing.sm,
-    borderRadius: accountingTheme.radius.md,
-    backgroundColor: accountingLightColors.surface,
-    padding: accountingTheme.spacing.md,
-    borderWidth: 1,
-    borderColor: accountingLightColors.border,
-  },
-  pressed: {
-    opacity: 0.85,
-  },
-  marker: {
-    width: 10,
-    height: 10,
-    marginTop: 7,
-    borderRadius: accountingTheme.radius.pill,
-  },
-  markerIncome: {
-    backgroundColor: accountingLightColors.income,
-  },
-  markerExpense: {
-    backgroundColor: accountingLightColors.expense,
-  },
-  content: {
-    flex: 1,
-    gap: 10,
-  },
-  topRow: {
-    flexDirection: 'row',
-    gap: accountingTheme.spacing.sm,
-  },
-  copy: {
-    flex: 1,
-    gap: 4,
-  },
-  title: {
-    fontSize: accountingTheme.typography.bodyLarge,
-    fontWeight: '600',
-    color: accountingLightColors.text,
-  },
-  subtitle: {
-    fontSize: accountingTheme.typography.caption,
-    color: accountingLightColors.textSecondary,
-  },
-  amount: {
-    flexShrink: 0,
-    fontSize: accountingTheme.typography.bodyLarge,
-    fontWeight: '700',
-  },
-  income: {
-    color: accountingLightColors.income,
-  },
-  expense: {
-    color: accountingLightColors.expense,
-  },
-  bottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: accountingTheme.spacing.sm,
-  },
-  note: {
-    flex: 1,
-    fontSize: accountingTheme.typography.body,
-    color: accountingLightColors.textMuted,
-  },
-});
+function createStyles(colors, spacing, radius, typography) {
+  return StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.sm,
+      borderRadius: radius.md,
+      backgroundColor: colors.surface,
+      padding: spacing.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    pressed: {
+      opacity: 0.85,
+    },
+    marker: {
+      width: 10,
+      height: 10,
+      marginTop: 7,
+      borderRadius: radius.pill,
+    },
+    markerIncome: {
+      backgroundColor: colors.income,
+    },
+    markerExpense: {
+      backgroundColor: colors.expense,
+    },
+    content: {
+      flex: 1,
+      gap: 10,
+    },
+    topRow: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
+    copy: {
+      flex: 1,
+      gap: 4,
+    },
+    title: {
+      fontSize: typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    subtitle: {
+      fontSize: typography.caption,
+      color: colors.textSecondary,
+    },
+    amount: {
+      flexShrink: 0,
+      fontSize: typography.bodyLarge,
+      fontWeight: '700',
+    },
+    income: {
+      color: colors.income,
+    },
+    expense: {
+      color: colors.expense,
+    },
+    bottomRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.sm,
+    },
+    note: {
+      flex: 1,
+      fontSize: typography.body,
+      color: colors.textMuted,
+    },
+  });
+}

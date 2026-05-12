@@ -1,37 +1,13 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { accountingLightColors, accountingTheme } from '@/constants/accounting-theme';
 import { getSyncBadgeState } from './helpers.js';
-
-const toneStyles = {
-  success: {
-    container: {
-      backgroundColor: accountingLightColors.brandSoft,
-    },
-    text: {
-      color: accountingLightColors.brandContrast,
-    },
-  },
-  warning: {
-    container: {
-      backgroundColor: '#FCEFD8',
-    },
-    text: {
-      color: accountingLightColors.warning,
-    },
-  },
-  danger: {
-    container: {
-      backgroundColor: '#F9E0DA',
-    },
-    text: {
-      color: accountingLightColors.danger,
-    },
-  },
-};
+import { getSyncToneStyles, useAccountingTheme } from './use-accounting-theme.js';
 
 export function SyncBadge({ status, pendingCount = 0, failedCount = 0, label }) {
+  const { colors, spacing, radius, typography } = useAccountingTheme();
+  const styles = createStyles(spacing, radius, typography);
+  const toneStyles = getSyncToneStyles(colors);
   const state = getSyncBadgeState(status, { pendingCount, failedCount });
   const tone = toneStyles[state.tone];
 
@@ -42,15 +18,17 @@ export function SyncBadge({ status, pendingCount = 0, failedCount = 0, label }) 
   );
 }
 
-const styles = StyleSheet.create({
-  badge: {
-    alignSelf: 'flex-start',
-    borderRadius: accountingTheme.radius.pill,
-    paddingHorizontal: accountingTheme.spacing.sm,
-    paddingVertical: 6,
-  },
-  text: {
-    fontSize: accountingTheme.typography.caption,
-    fontWeight: '700',
-  },
-});
+function createStyles(spacing, radius, typography) {
+  return StyleSheet.create({
+    badge: {
+      alignSelf: 'flex-start',
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 6,
+    },
+    text: {
+      fontSize: typography.caption,
+      fontWeight: '700',
+    },
+  });
+}

@@ -1,10 +1,13 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { accountingLightColors, accountingTheme } from '@/constants/accounting-theme';
 import { formatAccountingCurrency } from './helpers.js';
+import { useAccountingTheme } from './use-accounting-theme.js';
 
 export function AccountSummaryRow({ account, onPress }) {
+  const { colors, spacing, radius, typography } = useAccountingTheme();
+  const styles = createStyles(colors, spacing, radius, typography);
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -24,38 +27,40 @@ export function AccountSummaryRow({ account, onPress }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: accountingTheme.spacing.md,
-    borderRadius: accountingTheme.radius.md,
-    borderWidth: 1,
-    borderColor: accountingLightColors.border,
-    backgroundColor: accountingLightColors.surface,
-    padding: accountingTheme.spacing.md,
-  },
-  pressed: {
-    opacity: 0.85,
-  },
-  copy: {
-    flex: 1,
-    gap: 4,
-  },
-  name: {
-    fontSize: accountingTheme.typography.bodyLarge,
-    fontWeight: '600',
-    color: accountingLightColors.text,
-  },
-  meta: {
-    fontSize: accountingTheme.typography.caption,
-    color: accountingLightColors.textSecondary,
-    textTransform: 'capitalize',
-  },
-  amount: {
-    fontSize: accountingTheme.typography.bodyLarge,
-    fontWeight: '700',
-    color: accountingLightColors.text,
-  },
-});
+function createStyles(colors, spacing, radius, typography) {
+  return StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.md,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      padding: spacing.md,
+    },
+    pressed: {
+      opacity: 0.85,
+    },
+    copy: {
+      flex: 1,
+      gap: 4,
+    },
+    name: {
+      fontSize: typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    meta: {
+      fontSize: typography.caption,
+      color: colors.textSecondary,
+      textTransform: 'capitalize',
+    },
+    amount: {
+      fontSize: typography.bodyLarge,
+      fontWeight: '700',
+      color: colors.text,
+    },
+  });
+}
