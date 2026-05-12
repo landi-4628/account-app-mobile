@@ -1,19 +1,26 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { accountingCopy } from '../../constants/accounting-copy.js';
-import { SyncBadge } from './sync-badge.js';
+import { formatAccountingMonth } from './helpers.js';
+import {
+  addMonthsToDateInput,
+  buildCalendarWeeks,
+  formatDatePickerLabel,
+} from './date-picker-support.js';
 import {
   buildTransactionFormSubmitPayload,
   createTransactionFormDraft,
   getTransactionFormAccountOptions,
   getTransactionFormCategoryOptions,
 } from './transaction-form-support.js';
+import { getTransactionFormContainerStyle } from './transaction-form-layout-support.js';
 import { useAccountingTheme } from './use-accounting-theme.js';
 
 /** @typedef {import('./transaction-form-support.js').TransactionFormErrors} TransactionFormErrors */
 /** @typedef {import('./transaction-form-support.js').TransactionFormInitialValues} TransactionFormInitialValues */
 /** @typedef {import('./transaction-form-support.js').TransactionFormOption} TransactionFormOption */
+/** @typedef {import('@/types/accounting').AccountType} AccountType */
 /** @typedef {import('@/types/accounting').EntryType} EntryType */
 /** @typedef {import('@/types/accounting').SyncStatus} SyncStatus */
 /** @typedef {import('./use-accounting-theme.js').AccountingThemeColors} AccountingThemeColors */
@@ -28,11 +35,29 @@ const entryTypeOptions = [
   { value: 'income', label: accountingCopy.entryType.income },
 ];
 
-/** @type {Array<{ value: SyncStatus, label: string }>} */
-const defaultSyncStatusOptions = [
-  { value: 'pending', label: accountingCopy.syncStatus.pending },
-  { value: 'synced', label: accountingCopy.syncStatus.synced },
-  { value: 'failed', label: accountingCopy.syncStatus.failed },
+const inlineCopy = {
+  addCategory: '\u65b0\u589e\u5206\u7c7b',
+  addAccount: '\u65b0\u589e\u8d26\u6237',
+  cancel: '\u53d6\u6d88',
+  categoryName: '\u5206\u7c7b\u540d\u79f0',
+  accountName: '\u8d26\u6237\u540d\u79f0',
+  accountType: '\u8d26\u6237\u7c7b\u578b',
+  categoryPlaceholder: '\u8f93\u5165\u5206\u7c7b\u540d\u79f0',
+  accountPlaceholder: '\u8f93\u5165\u8d26\u6237\u540d\u79f0',
+  duplicateCategory: '\u5df2\u5b58\u5728\u540c\u540d\u5206\u7c7b',
+  duplicateAccount: '\u5df2\u5b58\u5728\u540c\u540d\u8d26\u6237',
+  requiredName: '\u8bf7\u8f93\u5165\u540d\u79f0',
+  chooseDate: '\u9009\u62e9\u65e5\u671f',
+  calendarConfirm: '\u786e\u5b9a',
+  calendarWeekdays: ['\u65e5', '\u4e00', '\u4e8c', '\u4e09', '\u56db', '\u4e94', '\u516d'],
+};
+
+/** @type {Array<{ value: AccountType, label: string }>} */
+const accountTypeOptions = [
+  { value: 'cash', label: accountingCopy.accountTypes.cash },
+  { value: 'bank', label: accountingCopy.accountTypes.bank },
+  { value: 'alipay', label: accountingCopy.accountTypes.alipay },
+  { value: 'wechat', label: accountingCopy.accountTypes.wechat },
 ];
 
 /**
@@ -41,7 +66,6 @@ const defaultSyncStatusOptions = [
  *   initialValues?: TransactionFormInitialValues | undefined,
  *   categoryOptions: TransactionFormOption[],
  *   accountOptions: TransactionFormOption[],
- *   syncStatusOptions?: Array<{ value: SyncStatus, label: string }> | undefined,
  *   defaultType?: EntryType | undefined,
  *   defaultAccountId?: string | undefined,
  *   defaultSyncStatus?: SyncStatus | undefined,
@@ -59,6 +83,8 @@ const defaultSyncStatusOptions = [
  *     note: string,
  *     syncStatus: SyncStatus,
  *   }) => void,
+ *   onCreateCategory?: ((input: { name: string, type: EntryType }) => { id: string } | null | undefined) | undefined,
+ *   onCreateAccount?: ((input: { name: string, type: AccountType }) => { id: string } | null | undefined) | undefined,
  *   onDelete?: (() => void) | undefined,
  * }} props
  */
@@ -67,7 +93,6 @@ export function TransactionForm({
   initialValues,
   categoryOptions,
   accountOptions,
-  syncStatusOptions = defaultSyncStatusOptions,
   defaultType = 'expense',
   defaultAccountId,
   defaultSyncStatus = 'pending',
@@ -77,6 +102,8 @@ export function TransactionForm({
   disabled = false,
   busy = false,
   onSubmit,
+  onCreateCategory,
+  onCreateAccount,
   onDelete,
 }) {
   const { colors, spacing, radius, typography, shadow } = useAccountingTheme();
@@ -88,6 +115,7 @@ export function TransactionForm({
     () => getTransactionFormAccountOptions(accountOptions),
     [accountOptions]
   );
+  const latestOptionsRef = React.useRef({ accountOptions, categoryOptions });
   const [draft, setDraft] = useState(() =>
     createTransactionFormDraft({
       mode,
@@ -101,28 +129,52 @@ export function TransactionForm({
     })
   );
   const [errors, setErrors] = useState(/** @type {TransactionFormErrors} */ ({}));
+  const [categoryComposerOpen, setCategoryComposerOpen] = useState(false);
+  const [categoryNameInput, setCategoryNameInput] = useState('');
+  const [categoryCreateError, setCategoryCreateError] = useState('');
+  const [accountComposerOpen, setAccountComposerOpen] = useState(false);
+  const [accountNameInput, setAccountNameInput] = useState('');
+  const [accountType, setAccountType] = useState(/** @type {AccountType} */ ('cash'));
+  const [accountCreateError, setAccountCreateError] = useState('');
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [visibleMonth, setVisibleMonth] = useState(draft.dateInput.slice(0, 7));
   const visibleCategories = useMemo(
     () => getTransactionFormCategoryOptions(categoryOptions, draft.type),
     [categoryOptions, draft.type]
   );
+  const calendarWeeks = useMemo(() => buildCalendarWeeks(visibleMonth), [visibleMonth]);
 
   useEffect(() => {
-    setDraft(
-      createTransactionFormDraft({
-        mode,
-        initialValues,
-        categoryOptions,
-        accountOptions,
-        defaultType,
-        defaultAccountId,
-        defaultSyncStatus,
-        timeZoneOffset,
-      })
-    );
+    latestOptionsRef.current = { accountOptions, categoryOptions };
+  }, [accountOptions, categoryOptions]);
+
+  useEffect(() => {
+    const { accountOptions: latestAccountOptions, categoryOptions: latestCategoryOptions } =
+      latestOptionsRef.current;
+
+    const nextDraft = createTransactionFormDraft({
+      mode,
+      initialValues,
+      categoryOptions: latestCategoryOptions,
+      accountOptions: latestAccountOptions,
+      defaultType,
+      defaultAccountId,
+      defaultSyncStatus,
+      timeZoneOffset,
+    });
+
+    setDraft(nextDraft);
+    setVisibleMonth(nextDraft.dateInput.slice(0, 7));
     setErrors(/** @type {TransactionFormErrors} */ ({}));
+    setCategoryComposerOpen(false);
+    setCategoryNameInput('');
+    setCategoryCreateError('');
+    setAccountComposerOpen(false);
+    setAccountNameInput('');
+    setAccountType('cash');
+    setAccountCreateError('');
+    setDatePickerOpen(false);
   }, [
-    accountOptions,
-    categoryOptions,
     defaultAccountId,
     defaultSyncStatus,
     defaultType,
@@ -140,9 +192,83 @@ export function TransactionForm({
     }
   }, [draft.categoryId, visibleCategories]);
 
+  useEffect(() => {
+    if (!filteredAccounts.some((option) => option.value === draft.accountId)) {
+      setDraft((currentDraft) => ({
+        ...currentDraft,
+        accountId: filteredAccounts[0]?.value ?? '',
+      }));
+    }
+  }, [draft.accountId, filteredAccounts]);
+
   const submitButtonLabel =
     submitLabel ?? (mode === 'edit' ? accountingCopy.actions.save : accountingCopy.actions.create);
   const disableActions = disabled || busy;
+  const categoryNameSet = useMemo(
+    () => new Set(visibleCategories.map((option) => option.label.trim().toLocaleLowerCase())),
+    [visibleCategories]
+  );
+  const accountNameSet = useMemo(
+    () => new Set(filteredAccounts.map((option) => option.label.trim().toLocaleLowerCase())),
+    [filteredAccounts]
+  );
+
+  const saveNewCategory = React.useCallback(() => {
+    const normalizedName = categoryNameInput.trim();
+
+    if (!normalizedName) {
+      setCategoryCreateError(inlineCopy.requiredName);
+      return;
+    }
+
+    if (categoryNameSet.has(normalizedName.toLocaleLowerCase())) {
+      setCategoryCreateError(inlineCopy.duplicateCategory);
+      return;
+    }
+
+    const created = onCreateCategory?.({ name: normalizedName, type: draft.type });
+
+    if (!created?.id) {
+      return;
+    }
+
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      categoryId: created.id,
+    }));
+    setCategoryComposerOpen(false);
+    setCategoryNameInput('');
+    setCategoryCreateError('');
+  }, [categoryNameInput, categoryNameSet, draft.type, onCreateCategory]);
+
+  const saveNewAccount = React.useCallback(() => {
+    const normalizedName = accountNameInput.trim();
+
+    if (!normalizedName) {
+      setAccountCreateError(inlineCopy.requiredName);
+      return;
+    }
+
+    if (accountNameSet.has(normalizedName.toLocaleLowerCase())) {
+      setAccountCreateError(inlineCopy.duplicateAccount);
+      return;
+    }
+
+    const created = onCreateAccount?.({ name: normalizedName, type: accountType });
+
+    if (!created?.id) {
+      return;
+    }
+
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      accountId: created.id,
+    }));
+    setAccountComposerOpen(false);
+    setAccountNameInput('');
+    setAccountType('cash');
+    setAccountCreateError('');
+  }, [accountNameInput, accountNameSet, accountType, onCreateAccount]);
 
   return (
     <View style={styles.container}>
@@ -150,19 +276,20 @@ export function TransactionForm({
         <Text style={styles.sectionLabel}>{accountingCopy.form.type}</Text>
         <View style={styles.segmentedRow}>
           {entryTypeOptions.map((option) => (
-            <OptionChip
-              key={option.value}
-              active={draft.type === option.value}
-              disabled={disableActions}
-              label={option.label}
-              onPress={() =>
-                setDraft((currentDraft) => ({
-                  ...currentDraft,
-                  type: /** @type {EntryType} */ (option.value),
-                }))
-              }
-              styles={styles}
-            />
+            <View key={option.value} style={styles.segmentedItem}>
+              <OptionChip
+                active={draft.type === option.value}
+                disabled={disableActions}
+                label={option.label}
+                onPress={() =>
+                  setDraft((currentDraft) => ({
+                    ...currentDraft,
+                    type: /** @type {EntryType} */ (option.value),
+                  }))
+                }
+                styles={styles}
+              />
+            </View>
           ))}
         </View>
       </View>
@@ -183,51 +310,191 @@ export function TransactionForm({
         <Text style={styles.sectionLabel}>{accountingCopy.form.category}</Text>
         <View style={styles.optionGrid}>
           {visibleCategories.map((option) => (
-            <OptionChip
-              key={option.value}
-              active={draft.categoryId === option.value}
+            <View key={option.value} style={styles.optionGridItem}>
+              <OptionChip
+                active={draft.categoryId === option.value}
+                disabled={disableActions}
+                label={option.label}
+                onPress={() =>
+                  setDraft((currentDraft) => ({ ...currentDraft, categoryId: option.value }))
+                }
+                styles={styles}
+              />
+            </View>
+          ))}
+          <View style={styles.optionGridItem}>
+            <ActionChip
               disabled={disableActions}
-              label={option.label}
-              onPress={() =>
-                setDraft((currentDraft) => ({ ...currentDraft, categoryId: option.value }))
-              }
+              label={inlineCopy.addCategory}
+              onPress={() => {
+                setCategoryComposerOpen((current) => !current);
+                setCategoryCreateError('');
+              }}
               styles={styles}
             />
-          ))}
+          </View>
         </View>
         {errors.categoryId ? <Text style={styles.errorText}>{errors.categoryId}</Text> : null}
+        {categoryComposerOpen ? (
+          <View style={styles.inlineComposer}>
+            <FieldBlock label={inlineCopy.categoryName} error={categoryCreateError} styles={styles}>
+              <TextInput
+                editable={!disableActions}
+                onChangeText={(value) => {
+                  setCategoryNameInput(value);
+                  if (categoryCreateError) {
+                    setCategoryCreateError('');
+                  }
+                }}
+                placeholder={inlineCopy.categoryPlaceholder}
+                placeholderTextColor={colors.textMuted}
+                style={styles.textInput}
+                value={categoryNameInput}
+              />
+            </FieldBlock>
+            <View style={styles.inlineActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={disableActions}
+                onPress={saveNewCategory}
+                style={({ pressed }) => [
+                  styles.inlinePrimaryButton,
+                  disableActions && styles.buttonDisabled,
+                  pressed && !disableActions ? styles.primaryButtonPressed : null,
+                ]}>
+                <Text style={styles.primaryButtonLabel}>{inlineCopy.addCategory}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={disableActions}
+                onPress={() => {
+                  setCategoryComposerOpen(false);
+                  setCategoryNameInput('');
+                  setCategoryCreateError('');
+                }}
+                style={({ pressed }) => [
+                  styles.inlineSecondaryButton,
+                  disableActions && styles.buttonDisabled,
+                  pressed && !disableActions ? styles.secondaryButtonPressed : null,
+                ]}>
+                <Text style={styles.secondaryButtonLabel}>{inlineCopy.cancel}</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>{accountingCopy.form.account}</Text>
         <View style={styles.optionGrid}>
           {filteredAccounts.map((option) => (
-            <OptionChip
-              key={option.value}
-              active={draft.accountId === option.value}
+            <View key={option.value} style={styles.optionGridItem}>
+              <OptionChip
+                active={draft.accountId === option.value}
+                disabled={disableActions}
+                label={option.label}
+                onPress={() =>
+                  setDraft((currentDraft) => ({ ...currentDraft, accountId: option.value }))
+                }
+                styles={styles}
+              />
+            </View>
+          ))}
+          <View style={styles.optionGridItem}>
+            <ActionChip
               disabled={disableActions}
-              label={option.label}
-              onPress={() =>
-                setDraft((currentDraft) => ({ ...currentDraft, accountId: option.value }))
-              }
+              label={inlineCopy.addAccount}
+              onPress={() => {
+                setAccountComposerOpen((current) => !current);
+                setAccountCreateError('');
+              }}
               styles={styles}
             />
-          ))}
+          </View>
         </View>
         {errors.accountId ? <Text style={styles.errorText}>{errors.accountId}</Text> : null}
+        {accountComposerOpen ? (
+          <View style={styles.inlineComposer}>
+            <FieldBlock label={inlineCopy.accountName} error={accountCreateError} styles={styles}>
+              <TextInput
+                editable={!disableActions}
+                onChangeText={(value) => {
+                  setAccountNameInput(value);
+                  if (accountCreateError) {
+                    setAccountCreateError('');
+                  }
+                }}
+                placeholder={inlineCopy.accountPlaceholder}
+                placeholderTextColor={colors.textMuted}
+                style={styles.textInput}
+                value={accountNameInput}
+              />
+            </FieldBlock>
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{inlineCopy.accountType}</Text>
+              <View style={styles.optionGrid}>
+                {accountTypeOptions.map((option) => (
+                  <View key={option.value} style={styles.optionGridItem}>
+                    <OptionChip
+                      active={accountType === option.value}
+                      disabled={disableActions}
+                      label={option.label}
+                      onPress={() => setAccountType(option.value)}
+                      styles={styles}
+                    />
+                  </View>
+                ))}
+              </View>
+            </View>
+            <View style={styles.inlineActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={disableActions}
+                onPress={saveNewAccount}
+                style={({ pressed }) => [
+                  styles.inlinePrimaryButton,
+                  disableActions && styles.buttonDisabled,
+                  pressed && !disableActions ? styles.primaryButtonPressed : null,
+                ]}>
+                <Text style={styles.primaryButtonLabel}>{inlineCopy.addAccount}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={disableActions}
+                onPress={() => {
+                  setAccountComposerOpen(false);
+                  setAccountNameInput('');
+                  setAccountType('cash');
+                  setAccountCreateError('');
+                }}
+                style={({ pressed }) => [
+                  styles.inlineSecondaryButton,
+                  disableActions && styles.buttonDisabled,
+                  pressed && !disableActions ? styles.secondaryButtonPressed : null,
+                ]}>
+                <Text style={styles.secondaryButtonLabel}>{inlineCopy.cancel}</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
       </View>
 
-      <FieldBlock label={accountingCopy.form.dateTime} error={errors.dateTimeInput} styles={styles}>
-        <TextInput
-          autoCapitalize="none"
-          autoCorrect={false}
-          editable={!disableActions}
-          onChangeText={(dateTimeInput) => setDraft((currentDraft) => ({ ...currentDraft, dateTimeInput }))}
-          placeholder={accountingCopy.form.dateTimePlaceholder}
-          placeholderTextColor={colors.textMuted}
-          style={styles.textInput}
-          value={draft.dateTimeInput}
-        />
+      <FieldBlock label={accountingCopy.form.dateTime} error={errors.dateInput} styles={styles}>
+        <Pressable
+          accessibilityRole="button"
+          disabled={disableActions}
+          onPress={() => {
+            setVisibleMonth(draft.dateInput.slice(0, 7));
+            setDatePickerOpen(true);
+          }}
+          style={({ pressed }) => [
+            styles.dateField,
+            disableActions && styles.buttonDisabled,
+            pressed && !disableActions ? styles.optionChipPressed : null,
+          ]}>
+          <Text style={styles.dateFieldValue}>{formatDatePickerLabel(draft.dateInput)}</Text>
+          <Text style={styles.dateFieldAction}>{inlineCopy.chooseDate}</Text>
+        </Pressable>
       </FieldBlock>
 
       <FieldBlock label={accountingCopy.form.note} styles={styles}>
@@ -243,39 +510,15 @@ export function TransactionForm({
         />
       </FieldBlock>
 
-      <View style={styles.section}>
-        <View style={styles.syncHeader}>
-          <Text style={styles.sectionLabel}>{accountingCopy.form.syncStatus}</Text>
-          <SyncBadge
-            status={draft.syncStatus}
-            label={syncStatusOptions.find((option) => option.value === draft.syncStatus)?.label}
-          />
-        </View>
-        <View style={styles.optionGrid}>
-          {syncStatusOptions.map((option) => (
-            <OptionChip
-              key={option.value}
-              active={draft.syncStatus === option.value}
-              disabled={disableActions}
-              label={option.label}
-              onPress={() =>
-                setDraft((currentDraft) => ({
-                  ...currentDraft,
-                  syncStatus: option.value,
-                }))
-              }
-              styles={styles}
-            />
-          ))}
-        </View>
-      </View>
-
       <View style={styles.actions}>
         <Pressable
           accessibilityRole="button"
           disabled={disableActions}
           onPress={() => {
-            const result = buildTransactionFormSubmitPayload(draft, { timeZoneOffset });
+            const result = buildTransactionFormSubmitPayload(draft, {
+              timeZoneOffset,
+              defaultSyncStatus,
+            });
             setErrors(result.errors);
 
             if (result.values) {
@@ -306,6 +549,21 @@ export function TransactionForm({
           </Pressable>
         ) : null}
       </View>
+
+      <DatePickerModal
+        disableActions={disableActions}
+        draftDateInput={draft.dateInput}
+        onCancel={() => setDatePickerOpen(false)}
+        onChangeMonth={(monthDelta) => setVisibleMonth((current) => addMonthsToDateInput(`${current}-01`, monthDelta).slice(0, 7))}
+        onSelect={(dateInput) => {
+          setDraft((currentDraft) => ({ ...currentDraft, dateInput }));
+          setDatePickerOpen(false);
+        }}
+        open={datePickerOpen}
+        styles={styles}
+        visibleMonth={visibleMonth}
+        weeks={calendarWeeks}
+      />
     </View>
   );
 }
@@ -349,10 +607,122 @@ function OptionChip({ active, disabled, label, onPress, styles }) {
         disabled ? styles.buttonDisabled : null,
         pressed && !disabled ? styles.optionChipPressed : null,
       ]}>
-      <Text style={[styles.optionChipLabel, active ? styles.optionChipLabelActive : null]}>
+      <Text
+        numberOfLines={1}
+        ellipsizeMode="tail"
+        style={[styles.optionChipLabel, active ? styles.optionChipLabelActive : null]}>
         {label}
       </Text>
     </Pressable>
+  );
+}
+
+/**
+ * @param {{
+ *   disabled: boolean,
+ *   label: string,
+ *   onPress: () => void,
+ *   styles: TransactionFormStyles,
+ * }} props
+ */
+function ActionChip({ disabled, label, onPress, styles }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.actionChip,
+        disabled ? styles.buttonDisabled : null,
+        pressed && !disabled ? styles.optionChipPressed : null,
+      ]}>
+      <Text numberOfLines={1} ellipsizeMode="tail" style={styles.actionChipLabel}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+/**
+ * @param {{
+ *   open: boolean,
+ *   visibleMonth: string,
+ *   draftDateInput: string,
+ *   weeks: Array<Array<{ key: string, dayNumber: number, value: string, inCurrentMonth: boolean }>>,
+ *   disableActions: boolean,
+ *   onCancel: () => void,
+ *   onChangeMonth: (monthDelta: number) => void,
+ *   onSelect: (dateInput: string) => void,
+ *   styles: TransactionFormStyles,
+ * }} props
+ */
+function DatePickerModal({
+  open,
+  visibleMonth,
+  draftDateInput,
+  weeks,
+  disableActions,
+  onCancel,
+  onChangeMonth,
+  onSelect,
+  styles,
+}) {
+  return (
+    <Modal animationType="fade" transparent visible={open} onRequestClose={onCancel}>
+      <Pressable style={styles.modalBackdrop} onPress={onCancel}>
+        <Pressable style={styles.modalCard} onPress={() => {}}>
+          <View style={styles.calendarHeader}>
+            <Pressable accessibilityRole="button" disabled={disableActions} onPress={() => onChangeMonth(-1)} style={styles.calendarNavButton}>
+              <Text style={styles.calendarNavLabel}>{'<'}</Text>
+            </Pressable>
+            <Text style={styles.calendarTitle}>{formatAccountingMonth(visibleMonth)}</Text>
+            <Pressable accessibilityRole="button" disabled={disableActions} onPress={() => onChangeMonth(1)} style={styles.calendarNavButton}>
+              <Text style={styles.calendarNavLabel}>{'>'}</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.calendarWeekdays}>
+            {inlineCopy.calendarWeekdays.map((weekday) => (
+              <Text key={weekday} style={styles.calendarWeekdayLabel}>
+                {weekday}
+              </Text>
+            ))}
+          </View>
+
+          <View style={styles.calendarGrid}>
+            {weeks.flat().map((day) => {
+              const active = day.value === draftDateInput;
+
+              return (
+                <Pressable
+                  key={day.key}
+                  accessibilityRole="button"
+                  onPress={() => onSelect(day.value)}
+                  style={({ pressed }) => [
+                    styles.calendarDay,
+                    day.inCurrentMonth ? null : styles.calendarDayMuted,
+                    active ? styles.calendarDayActive : null,
+                    pressed ? styles.optionChipPressed : null,
+                  ]}>
+                  <Text
+                    style={[
+                      styles.calendarDayLabel,
+                      day.inCurrentMonth ? null : styles.calendarDayLabelMuted,
+                      active ? styles.calendarDayLabelActive : null,
+                    ]}>
+                    {day.dayNumber}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Pressable accessibilityRole="button" onPress={onCancel} style={styles.modalFooterButton}>
+            <Text style={styles.modalFooterButtonLabel}>{inlineCopy.calendarConfirm}</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -365,15 +735,7 @@ function OptionChip({ active, disabled, label, onPress, styles }) {
  */
 function createStyles(colors, spacing, radius, typography, cardShadow) {
   return StyleSheet.create({
-    container: {
-      gap: spacing.lg,
-      borderRadius: radius.lg,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: spacing.lg,
-      ...cardShadow,
-    },
+    container: getTransactionFormContainerStyle(spacing),
     section: {
       gap: spacing.sm,
     },
@@ -386,18 +748,40 @@ function createStyles(colors, spacing, radius, typography, cardShadow) {
       flexDirection: 'row',
       gap: spacing.sm,
     },
+    segmentedItem: {
+      flex: 1,
+    },
     optionGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: spacing.sm,
+      marginHorizontal: -spacing.xs,
+      rowGap: spacing.sm,
+    },
+    optionGridItem: {
+      width: '33.3333%',
+      paddingHorizontal: spacing.xs,
     },
     optionChip: {
-      minWidth: 96,
+      width: '100%',
+      minHeight: 44,
       borderRadius: radius.pill,
       borderWidth: 1,
       borderColor: colors.borderStrong,
       backgroundColor: colors.surfaceAlt,
-      paddingHorizontal: spacing.md,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    actionChip: {
+      width: '100%',
+      minHeight: 44,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: colors.brand,
+      backgroundColor: colors.brandSoft,
+      paddingHorizontal: spacing.sm,
       paddingVertical: spacing.sm,
       alignItems: 'center',
       justifyContent: 'center',
@@ -410,12 +794,21 @@ function createStyles(colors, spacing, radius, typography, cardShadow) {
       opacity: 0.85,
     },
     optionChipLabel: {
+      width: '100%',
       fontSize: typography.body,
       fontWeight: '600',
       color: colors.text,
+      textAlign: 'center',
     },
     optionChipLabelActive: {
       color: colors.brandContrast,
+    },
+    actionChipLabel: {
+      width: '100%',
+      fontSize: typography.body,
+      fontWeight: '600',
+      color: colors.brandContrast,
+      textAlign: 'center',
     },
     textInput: {
       borderRadius: radius.md,
@@ -427,18 +820,64 @@ function createStyles(colors, spacing, radius, typography, cardShadow) {
       fontSize: typography.bodyLarge,
       color: colors.text,
     },
+    dateField: {
+      minHeight: 52,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      justifyContent: 'center',
+      gap: 4,
+    },
+    dateFieldValue: {
+      fontSize: typography.bodyLarge,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    dateFieldAction: {
+      fontSize: typography.caption,
+      color: colors.textSecondary,
+    },
     noteInput: {
       minHeight: 104,
-    },
-    syncHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: spacing.sm,
     },
     errorText: {
       fontSize: typography.caption,
       color: colors.danger,
+    },
+    inlineComposer: {
+      gap: spacing.md,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+      padding: spacing.md,
+    },
+    inlineActions: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
+    inlinePrimaryButton: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.md,
+      backgroundColor: colors.brand,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    inlineSecondaryButton: {
+      minWidth: 92,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      backgroundColor: colors.surfaceAlt,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
     },
     actions: {
       flexDirection: 'row',
@@ -482,6 +921,99 @@ function createStyles(colors, spacing, radius, typography, cardShadow) {
     },
     buttonDisabled: {
       opacity: 0.55,
+    },
+    modalBackdrop: {
+      flex: 1,
+      justifyContent: 'center',
+      backgroundColor: 'rgba(15, 23, 42, 0.16)',
+      padding: spacing.lg,
+    },
+    modalCard: {
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      padding: spacing.lg,
+      gap: spacing.md,
+      ...cardShadow,
+    },
+    calendarHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    calendarNavButton: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.pill,
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    calendarNavLabel: {
+      fontSize: typography.bodyLarge,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    calendarTitle: {
+      fontSize: typography.bodyLarge,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    calendarWeekdays: {
+      flexDirection: 'row',
+    },
+    calendarWeekdayLabel: {
+      width: '14.2857%',
+      textAlign: 'center',
+      fontSize: typography.caption,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    calendarGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+    },
+    calendarDay: {
+      width: '14.2857%',
+      aspectRatio: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.md,
+    },
+    calendarDayMuted: {
+      opacity: 0.45,
+    },
+    calendarDayActive: {
+      backgroundColor: colors.brandSoft,
+      borderWidth: 1,
+      borderColor: colors.brand,
+    },
+    calendarDayLabel: {
+      fontSize: typography.body,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    calendarDayLabelMuted: {
+      color: colors.textSecondary,
+    },
+    calendarDayLabelActive: {
+      color: colors.brandContrast,
+    },
+    modalFooterButton: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.md,
+      backgroundColor: colors.brand,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    modalFooterButtonLabel: {
+      fontSize: typography.body,
+      fontWeight: '700',
+      color: colors.textInverse,
     },
   });
 }

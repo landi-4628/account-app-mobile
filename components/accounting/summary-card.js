@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { accountingCopy } from '../../constants/accounting-copy.js';
 import { formatAccountingCurrency, formatAccountingMonth } from './helpers.js';
+import { InteractiveCard } from './interactive-card.js';
 import { SyncBadge } from './sync-badge.js';
 import { useAccountingTheme } from './use-accounting-theme.js';
 
@@ -51,7 +52,7 @@ export function SummaryCard({
   const styles = createStyles(colors, spacing, radius, typography, shadow);
 
   return (
-    <View style={styles.card}>
+    <InteractiveCard style={styles.card} shadowStyle={shadow.card}>
       <View style={styles.header}>
         <View style={styles.headerCopy}>
           <Text style={styles.month}>{formatAccountingMonth(month)}</Text>
@@ -68,7 +69,7 @@ export function SummaryCard({
         <Metric label={accountingCopy.entryType.income} value={income} tone="income" styles={styles} />
         <Metric label={accountingCopy.entryType.expense} value={expense} tone="expense" styles={styles} />
       </View>
-    </View>
+    </InteractiveCard>
   );
 }
 

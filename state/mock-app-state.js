@@ -8,6 +8,7 @@ import {
 } from '../data/mock/mock-statistics.js';
 import { mockTransactions } from '../data/mock/mock-transactions.js';
 import { mockUser } from '../data/mock/mock-user.js';
+import { mergePersistedCustomDefinitions } from './mock-app-persistence-support.js';
 
 const DEFAULT_ENTRY_TYPE = 'expense';
 
@@ -46,7 +47,10 @@ const DEFAULT_ENTRY_TYPE = 'expense';
  * @typedef {{ type: 'updateTransaction', transactionId: string, updates: Partial<TransactionRecord> }} UpdateTransactionAction
  * @typedef {{ type: 'deleteTransaction', transactionId: string }} DeleteTransactionAction
  * @typedef {{ type: 'updateTransactionSyncStatus', transactionId: string, syncStatus: import('../types/accounting').SyncStatus, updatedAt?: string | undefined }} UpdateTransactionSyncStatusAction
- * @typedef {OpenQuickAddAction | CloseQuickAddAction | SetSelectedEntryTypeAction | SetCurrentMonthAction | AddTransactionAction | UpdateTransactionAction | DeleteTransactionAction | UpdateTransactionSyncStatusAction} MockAppAction
+ * @typedef {{ type: 'addCategory', category: LedgerCategory }} AddCategoryAction
+ * @typedef {{ type: 'addAccount', account: LedgerAccount }} AddAccountAction
+ * @typedef {{ type: 'hydrateCustomDefinitions', definitions: { categories?: LedgerCategory[] | undefined, accounts?: LedgerAccount[] | undefined } }} HydrateCustomDefinitionsAction
+ * @typedef {OpenQuickAddAction | CloseQuickAddAction | SetSelectedEntryTypeAction | SetCurrentMonthAction | AddTransactionAction | UpdateTransactionAction | DeleteTransactionAction | UpdateTransactionSyncStatusAction | AddCategoryAction | AddAccountAction | HydrateCustomDefinitionsAction} MockAppAction
  */
 
 /**
@@ -419,6 +423,18 @@ export function mockAppReducer(state, action) {
             : transaction
         ),
       };
+    case 'addCategory':
+      return {
+        ...state,
+        categories: [...state.categories, action.category],
+      };
+    case 'addAccount':
+      return {
+        ...state,
+        accounts: [...state.accounts, action.account],
+      };
+    case 'hydrateCustomDefinitions':
+      return mergePersistedCustomDefinitions(state, action.definitions);
     default:
       return state;
   }

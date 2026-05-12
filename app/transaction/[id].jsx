@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 
 import { AccountingScreen, EmptyState, TransactionForm } from '@/components/accounting';
-import { accountingCategoryLabels, accountingCopy } from '@/constants/accounting-copy';
+import { accountingCopy } from '@/constants/accounting-copy';
 import { useMockApp } from '@/providers/mock-app-provider';
 
 const DEFAULT_TIME_ZONE_OFFSET = '+08:00';
@@ -10,7 +10,7 @@ const DEFAULT_TIME_ZONE_OFFSET = '+08:00';
 function buildCategoryOptions(categories) {
   return categories.map((category) => ({
     value: category.id,
-    label: accountingCategoryLabels[category.id] ?? category.id,
+    label: category.name ?? category.id,
     type: category.type,
     isActive: category.isActive,
   }));
@@ -87,8 +87,11 @@ export default function EditTransactionScreen() {
         <TransactionForm
           accountOptions={accountOptions}
           categoryOptions={categoryOptions}
+          defaultSyncStatus="pending"
           initialValues={transaction}
           mode="edit"
+          onCreateAccount={actions.addAccount}
+          onCreateCategory={actions.addCategory}
           submitLabel={accountingCopy.actions.save}
           timeZoneOffset={DEFAULT_TIME_ZONE_OFFSET}
           deleteLabel={accountingCopy.actions.delete}

@@ -8,6 +8,10 @@ import {
   selectCurrentMonthData,
   selectSyncSummary,
 } from './mock-app-state.js';
+import {
+  mergePersistedCustomDefinitions,
+  selectPersistedCustomDefinitions,
+} from './mock-app-persistence-support.js';
 
 test('builds current month and account summaries from the mock foundations', () => {
   const state = createInitialMockAppState();
@@ -225,4 +229,140 @@ test('updates transaction sync status and recalculates sync-derived selectors', 
   assert.equal(monthData.summary.syncStatus, 'pending');
   assert.equal(syncSummary.status, 'pending');
   assert.equal(syncSummary.failedCount, 0);
+});
+
+test('adds a custom category and keeps it active in the selected type list', () => {
+  const initialState = createInitialMockAppState();
+  const state = mockAppReducer(initialState, {
+    type: 'addCategory',
+    category: {
+      id: 'cat-custom-snacks',
+      name: 'Snacks',
+      type: 'expense',
+      isActive: true,
+      isCustom: true,
+    },
+  });
+
+  assert.equal(state.categories.at(-1)?.id, 'cat-custom-snacks');
+  assert.equal(state.categories.at(-1)?.name, 'Snacks');
+  assert.equal(state.categories.at(-1)?.isCustom, true);
+});
+
+test('adds a custom account with zero starting balance and includes it in account summaries', () => {
+  const initialState = createInitialMockAppState();
+  const state = mockAppReducer(initialState, {
+    type: 'addAccount',
+    account: {
+      id: 'acc-custom-wallet',
+      name: 'Wallet',
+      type: 'cash',
+      initialBalance: 0,
+      currentBalance: 0,
+      isActive: true,
+      isCustom: true,
+    },
+  });
+  const account = selectAccountSummaries(state).find((item) => item.id === 'acc-custom-wallet');
+
+  assert.equal(account?.name, 'Wallet');
+  assert.equal(account?.type, 'cash');
+  assert.equal(account?.currentBalance, 0);
+});
+
+test('selects only custom accounts and categories for persistence', () => {
+  const state = mockAppReducer(
+    mockAppReducer(createInitialMockAppState(), {
+      type: 'addCategory',
+      category: {
+        id: 'cat-custom-snacks',
+        name: 'Snacks',
+        type: 'expense',
+        isActive: true,
+        isCustom: true,
+      },
+    }),
+    {
+      type: 'addAccount',
+      account: {
+        id: 'acc-custom-wallet',
+        name: 'Wallet',
+        type: 'cash',
+        initialBalance: 0,
+        currentBalance: 0,
+        isActive: true,
+        isCustom: true,
+      },
+    }
+  );
+
+  assert.deepEqual(selectPersistedCustomDefinitions(state), {
+    categories: [
+      {
+        id: 'cat-custom-snacks',
+        name: 'Snacks',
+        type: 'expense',
+        isActive: true,
+        isCustom: true,
+      },
+    ],
+    accounts: [
+      {
+        id: 'acc-custom-wallet',
+        name: 'Wallet',
+        type: 'cash',
+        initialBalance: 0,
+        currentBalance: 0,
+        isActive: true,
+        isCustom: true,
+      },
+    ],
+  });
+});
+
+test('merges persisted custom definitions without duplicating seeded ids', () => {
+  const initialState = createInitialMockAppState();
+  const merged = mergePersistedCustomDefinitions(initialState, {
+    categories: [
+      {
+        id: 'cat-food',
+        name: 'Duplicate Seed',
+        type: 'expense',
+        isActive: true,
+        isCustom: true,
+      },
+      {
+        id: 'cat-custom-snacks',
+        name: 'Snacks',
+        type: 'expense',
+        isActive: true,
+        isCustom: true,
+      },
+    ],
+    accounts: [
+      {
+        id: 'acc-cash',
+        name: 'Duplicate Seed',
+        type: 'cash',
+        initialBalance: 0,
+        currentBalance: 0,
+        isActive: true,
+        isCustom: true,
+      },
+      {
+        id: 'acc-custom-wallet',
+        name: 'Wallet',
+        type: 'cash',
+        initialBalance: 0,
+        currentBalance: 0,
+        isActive: true,
+        isCustom: true,
+      },
+    ],
+  });
+
+  assert.equal(merged.categories.filter((item) => item.id === 'cat-food').length, 1);
+  assert.equal(merged.accounts.filter((item) => item.id === 'acc-cash').length, 1);
+  assert.equal(merged.categories.at(-1)?.id, 'cat-custom-snacks');
+  assert.equal(merged.accounts.at(-1)?.id, 'acc-custom-wallet');
 });

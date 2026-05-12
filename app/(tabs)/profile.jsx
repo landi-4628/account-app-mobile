@@ -5,6 +5,7 @@ import { accountingCopy } from '@/constants/accounting-copy';
 import {
   AccountSummaryRow,
   AccountingScreen,
+  InteractiveCard,
   SectionHeader,
   SyncSummaryRow,
 } from '@/components/accounting';
@@ -21,7 +22,7 @@ function InfoCard({ title, rows }) {
   const styles = createStyles(colors, spacing, radius, typography, shadow);
 
   return (
-    <View style={styles.card}>
+    <InteractiveCard style={styles.card} shadowStyle={shadow.card}>
       <Text style={styles.cardTitle}>{title}</Text>
       <View style={styles.infoList}>
         {rows.map((row) => (
@@ -31,7 +32,7 @@ function InfoCard({ title, rows }) {
           </View>
         ))}
       </View>
-    </View>
+    </InteractiveCard>
   );
 }
 

@@ -18,6 +18,7 @@ import { useAccountingTheme } from './use-accounting-theme.js';
  *   accountLabel?: string | undefined,
  *   timeZone?: string | undefined,
  *   onPress?: ((transaction: TransactionRecord) => void) | undefined,
+ *   onLongPress?: ((transaction: TransactionRecord, event: import('react-native').GestureResponderEvent) => void) | undefined,
  * }} props
  */
 export function TransactionListItem({
@@ -26,6 +27,7 @@ export function TransactionListItem({
   accountLabel,
   timeZone = 'UTC',
   onPress,
+  onLongPress,
 }) {
   const { colors, spacing, radius, typography } = useAccountingTheme();
   const styles = createStyles(colors, spacing, radius, typography);
@@ -36,6 +38,7 @@ export function TransactionListItem({
     <Pressable
       accessibilityRole="button"
       onPress={() => onPress?.(transaction)}
+      onLongPress={(event) => onLongPress?.(transaction, event)}
       style={({ pressed }) => [styles.container, pressed && styles.pressed]}>
       <View style={[styles.marker, transaction.type === 'income' ? styles.markerIncome : styles.markerExpense]} />
       <View style={styles.content}>

@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  buildDateTimeInput,
   buildTransactionFormSubmitPayload,
   createTransactionFormDraft,
+  formatDateInput,
   getTransactionFormCategoryOptions,
 } from './transaction-form-support.js';
 
@@ -46,9 +48,9 @@ test('creates a create-mode draft with filtered defaults and formatted inputs', 
       amountInput: '',
       categoryId: 'cat-salary',
       accountId: 'acc-wechat',
-      dateTimeInput: '2026-05-12T17:45',
+      dateInput: '2026-05-12',
+      timeInput: '17:45',
       note: '',
-      syncStatus: 'pending',
     }
   );
 });
@@ -75,9 +77,9 @@ test('creates an edit-mode draft from an existing transaction payload', () => {
       amountInput: '25.30',
       categoryId: 'cat-food',
       accountId: 'acc-cash',
-      dateTimeInput: '2026-05-11T12:30',
+      dateInput: '2026-05-11',
+      timeInput: '12:30',
       note: 'Lunch',
-      syncStatus: 'failed',
     }
   );
 });
@@ -90,11 +92,11 @@ test('builds a submit payload with parsed amount, normalized note, and timezone 
         amountInput: '25.30',
         categoryId: 'cat-food',
         accountId: 'acc-cash',
-        dateTimeInput: '2026-05-11T12:30',
+        dateInput: '2026-05-11',
+        timeInput: '12:30',
         note: '  Lunch  ',
-        syncStatus: 'failed',
       },
-      { timeZoneOffset: '+08:00' }
+      { timeZoneOffset: '+08:00', defaultSyncStatus: 'pending' }
     ),
     {
       values: {
@@ -104,7 +106,7 @@ test('builds a submit payload with parsed amount, normalized note, and timezone 
         accountId: 'acc-cash',
         transactionAt: '2026-05-11T12:30:00+08:00',
         note: 'Lunch',
-        syncStatus: 'failed',
+        syncStatus: 'pending',
       },
       errors: {},
     }
@@ -112,27 +114,29 @@ test('builds a submit payload with parsed amount, normalized note, and timezone 
 });
 
 test('returns field errors when submit payload input is incomplete or invalid', () => {
-  assert.deepEqual(
-    buildTransactionFormSubmitPayload(
-      {
-        type: 'expense',
-        amountInput: '0',
-        categoryId: '',
-        accountId: '',
-        dateTimeInput: '2026-05-11',
-        note: '   ',
-        syncStatus: 'pending',
-      },
-      { timeZoneOffset: '+08:00' }
-    ),
+  const result = buildTransactionFormSubmitPayload(
     {
-      values: null,
-      errors: {
-        amountInput: '请输入大于 0 的金额',
-        categoryId: '请选择分类',
-        accountId: '请选择账户',
-        dateTimeInput: '请输入正确的时间，格式为 YYYY-MM-DDTHH:mm',
-      },
-    }
+      type: 'expense',
+      amountInput: '0',
+      categoryId: '',
+      accountId: '',
+      dateInput: '2026-05-11',
+      timeInput: 'bad',
+      note: '   ',
+    },
+    { timeZoneOffset: '+08:00' }
   );
+
+  assert.equal(result.values, null);
+  assert.deepEqual(Object.keys(result.errors).sort(), [
+    'accountId',
+    'amountInput',
+    'categoryId',
+    'dateInput',
+  ]);
+});
+
+test('formats date-only display input and can rebuild a datetime payload input', () => {
+  assert.equal(formatDateInput('2026-05-11T12:30:00+08:00', '+08:00'), '2026-05-11');
+  assert.equal(buildDateTimeInput('2026-05-11', '12:30'), '2026-05-11T12:30');
 });

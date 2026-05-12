@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useMemo, useReducer } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, useContext, useEffect, useMemo, useReducer, useState } from 'react';
 
 import {
   createInitialMockAppState,
@@ -10,6 +11,13 @@ import {
   selectSyncSummary,
   selectTransactionById,
 } from '../state/mock-app-state.js';
+import {
+  MOCK_APP_CUSTOM_DEFINITIONS_STORAGE_KEY,
+  selectPersistedCustomDefinitions,
+} from '../state/mock-app-persistence-support.js';
+import {
+  createMockAppStorageAdapter,
+} from '../state/mock-app-storage.js';
 
 /**
  * @typedef {import('../types/accounting').EntryType} EntryType
@@ -34,6 +42,8 @@ import {
  * @property {(transactionId: string, updates: EditTransactionInput) => void} updateTransaction
  * @property {(transactionId: string) => void} deleteTransaction
  * @property {(transactionId: string, syncStatus: import('../types/accounting').SyncStatus, updatedAt?: string | undefined) => void} updateTransactionSyncStatus
+ * @property {(input: { name: string, type: EntryType }) => LedgerCategory} addCategory
+ * @property {(input: { name: string, type: import('../types/accounting').AccountType }) => LedgerAccount} addAccount
  */
 
 /**
@@ -65,6 +75,7 @@ const MockAppContext =
   /** @type {React.Context<MockAppContextValue | null>} */ (
     createContext(/** @type {MockAppContextValue | null} */ (null))
   );
+const persistedDefinitionStorage = createMockAppStorageAdapter(AsyncStorage);
 
 /**
  * @param {NewTransactionInput & { id?: string | undefined, syncStatus?: import('../types/accounting').SyncStatus | undefined }} input
@@ -89,11 +100,53 @@ function createTransactionRecord(input) {
  */
 export function MockAppProvider({ children }) {
   const [state, dispatch] = useReducer(mockAppReducer, undefined, createInitialMockAppState);
+  const [hydrated, setHydrated] = useState(false);
 
   const currentMonthData = useMemo(() => selectCurrentMonthData(state), [state]);
   const accountSummaries = useMemo(() => selectAccountSummaries(state), [state]);
   const syncSummary = useMemo(() => selectSyncSummary(state), [state]);
   const seededMonthlyStatistics = useMemo(() => selectSeededMonthlyStatistics(), []);
+  const persistedDefinitions = useMemo(() => selectPersistedCustomDefinitions(state), [state]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function hydrateCustomDefinitions() {
+      try {
+        const definitions = await persistedDefinitionStorage.readCustomDefinitions(
+          MOCK_APP_CUSTOM_DEFINITIONS_STORAGE_KEY
+        );
+
+        if (active) {
+          dispatch({
+            type: 'hydrateCustomDefinitions',
+            definitions,
+          });
+        }
+      } finally {
+        if (active) {
+          setHydrated(true);
+        }
+      }
+    }
+
+    void hydrateCustomDefinitions();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+
+    void persistedDefinitionStorage.writeCustomDefinitions(
+      MOCK_APP_CUSTOM_DEFINITIONS_STORAGE_KEY,
+      persistedDefinitions
+    );
+  }, [hydrated, persistedDefinitions]);
 
   /** @type {MockAppContextValue} */
   const value = useMemo(
@@ -139,6 +192,26 @@ export function MockAppProvider({ children }) {
             syncStatus,
             updatedAt,
           }),
+        addCategory: ({ name, type }) => {
+          const category = createCustomCategoryRecord(name, type);
+
+          dispatch({
+            type: 'addCategory',
+            category,
+          });
+
+          return category;
+        },
+        addAccount: ({ name, type }) => {
+          const account = createCustomAccountRecord(name, type);
+
+          dispatch({
+            type: 'addAccount',
+            account,
+          });
+
+          return account;
+        },
       },
       selectors: {
         getCategoriesByType: (entryType) => selectCategoriesByType(state, entryType),
@@ -148,7 +221,43 @@ export function MockAppProvider({ children }) {
     [accountSummaries, currentMonthData, seededMonthlyStatistics, state, syncSummary]
   );
 
+  if (!hydrated) {
+    return null;
+  }
+
   return React.createElement(MockAppContext.Provider, { value }, children);
+}
+
+/**
+ * @param {string} name
+ * @param {EntryType} type
+ * @returns {LedgerCategory}
+ */
+function createCustomCategoryRecord(name, type) {
+  return {
+    id: `cat-custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name: name.trim(),
+    type,
+    isActive: true,
+    isCustom: true,
+  };
+}
+
+/**
+ * @param {string} name
+ * @param {import('../types/accounting').AccountType} type
+ * @returns {LedgerAccount}
+ */
+function createCustomAccountRecord(name, type) {
+  return {
+    id: `acc-custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name: name.trim(),
+    type,
+    initialBalance: 0,
+    currentBalance: 0,
+    isActive: true,
+    isCustom: true,
+  };
 }
 
 /** @returns {MockAppContextValue} */

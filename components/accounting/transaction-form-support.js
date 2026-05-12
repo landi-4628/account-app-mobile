@@ -20,7 +20,6 @@ import { accountingCopy } from '../../constants/accounting-copy.js';
  *   accountId?: string | undefined,
  *   transactionAt?: string | undefined,
  *   note?: string | undefined,
- *   syncStatus?: SyncStatus | undefined,
  * }} TransactionFormInitialValues
  */
 
@@ -30,9 +29,9 @@ import { accountingCopy } from '../../constants/accounting-copy.js';
  *   amountInput: string,
  *   categoryId: string,
  *   accountId: string,
- *   dateTimeInput: string,
+ *   dateInput: string,
+ *   timeInput: string,
  *   note: string,
- *   syncStatus: SyncStatus,
  * }} TransactionFormDraft
  */
 
@@ -41,14 +40,15 @@ import { accountingCopy } from '../../constants/accounting-copy.js';
  *   amountInput?: string | undefined,
  *   categoryId?: string | undefined,
  *   accountId?: string | undefined,
- *   dateTimeInput?: string | undefined,
+ *   dateInput?: string | undefined,
  * }} TransactionFormErrors
  */
 
 const DEFAULT_TIME_ZONE_OFFSET = '+00:00';
 const DEFAULT_SYNC_STATUS = 'pending';
 const DEFAULT_ENTRY_TYPE = 'expense';
-const DATE_TIME_INPUT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+const DATE_INPUT_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_INPUT_PATTERN = /^\d{2}:\d{2}$/;
 
 /**
  * @param {TransactionFormOption[]} categoryOptions
@@ -88,7 +88,6 @@ export function createTransactionFormDraft({
   accountOptions,
   defaultType = DEFAULT_ENTRY_TYPE,
   defaultAccountId,
-  defaultSyncStatus = DEFAULT_SYNC_STATUS,
   now,
   timeZoneOffset = DEFAULT_TIME_ZONE_OFFSET,
 }) {
@@ -109,15 +108,15 @@ export function createTransactionFormDraft({
       typeof initialValues?.amount === 'number' ? formatAmountInput(initialValues.amount) : '',
     categoryId,
     accountId,
-    dateTimeInput: formatDateTimeInput(transactionAt, timeZoneOffset),
+    dateInput: formatDateInput(transactionAt, timeZoneOffset),
+    timeInput: formatTimeInput(transactionAt, timeZoneOffset),
     note: initialValues?.note ?? '',
-    syncStatus: initialValues?.syncStatus ?? defaultSyncStatus,
   };
 }
 
 /**
  * @param {TransactionFormDraft} draft
- * @param {{ timeZoneOffset?: string | undefined }} [options]
+ * @param {{ timeZoneOffset?: string | undefined, defaultSyncStatus?: SyncStatus | undefined }} [options]
  * @returns {{ values: ({
  *   type: EntryType,
  *   amount: number,
@@ -130,7 +129,10 @@ export function createTransactionFormDraft({
  */
 export function buildTransactionFormSubmitPayload(
   draft,
-  { timeZoneOffset = DEFAULT_TIME_ZONE_OFFSET } = {}
+  {
+    timeZoneOffset = DEFAULT_TIME_ZONE_OFFSET,
+    defaultSyncStatus = DEFAULT_SYNC_STATUS,
+  } = {}
 ) {
   /** @type {TransactionFormErrors} */
   const errors = {};
@@ -148,8 +150,12 @@ export function buildTransactionFormSubmitPayload(
     errors.accountId = accountingCopy.form.errors.account;
   }
 
-  if (!DATE_TIME_INPUT_PATTERN.test(draft.dateTimeInput)) {
-    errors.dateTimeInput = accountingCopy.form.errors.dateTime;
+  if (!DATE_INPUT_PATTERN.test(draft.dateInput)) {
+    errors.dateInput = '\u8bf7\u9009\u62e9\u65e5\u671f';
+  }
+
+  if (!TIME_INPUT_PATTERN.test(draft.timeInput)) {
+    errors.dateInput = '\u8bf7\u9009\u62e9\u65e5\u671f';
   }
 
   if (Object.keys(errors).length > 0) {
@@ -162,9 +168,12 @@ export function buildTransactionFormSubmitPayload(
       amount: /** @type {number} */ (amount),
       categoryId: draft.categoryId,
       accountId: draft.accountId,
-      transactionAt: normalizeDateTimeInput(draft.dateTimeInput, timeZoneOffset),
+      transactionAt: normalizeDateTimeInput(
+        buildDateTimeInput(draft.dateInput, draft.timeInput),
+        timeZoneOffset
+      ),
       note: draft.note.trim(),
-      syncStatus: draft.syncStatus,
+      syncStatus: defaultSyncStatus,
     },
     errors,
   };
@@ -230,7 +239,7 @@ function parseAmountInput(input) {
  * @param {string} timeZoneOffset
  * @returns {string}
  */
-export function formatDateTimeInput(value, timeZoneOffset = DEFAULT_TIME_ZONE_OFFSET) {
+export function formatDateInput(value, timeZoneOffset = DEFAULT_TIME_ZONE_OFFSET) {
   const date = value instanceof Date ? value : new Date(value);
 
   if (Number.isNaN(date.getTime())) {
@@ -244,8 +253,34 @@ export function formatDateTimeInput(value, timeZoneOffset = DEFAULT_TIME_ZONE_OF
     localDate.getUTCFullYear(),
     `${localDate.getUTCMonth() + 1}`.padStart(2, '0'),
     `${localDate.getUTCDate()}`.padStart(2, '0'),
-  ].join('-')
-    + `T${`${localDate.getUTCHours()}`.padStart(2, '0')}:${`${localDate.getUTCMinutes()}`.padStart(2, '0')}`;
+  ].join('-');
+}
+
+/**
+ * @param {string | Date} value
+ * @param {string} timeZoneOffset
+ * @returns {string}
+ */
+export function formatTimeInput(value, timeZoneOffset = DEFAULT_TIME_ZONE_OFFSET) {
+  const date = value instanceof Date ? value : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '12:00';
+  }
+
+  const offsetMinutes = parseTimeZoneOffset(timeZoneOffset);
+  const localDate = new Date(date.getTime() + offsetMinutes * 60 * 1000);
+
+  return `${`${localDate.getUTCHours()}`.padStart(2, '0')}:${`${localDate.getUTCMinutes()}`.padStart(2, '0')}`;
+}
+
+/**
+ * @param {string} dateInput
+ * @param {string} timeInput
+ * @returns {string}
+ */
+export function buildDateTimeInput(dateInput, timeInput) {
+  return `${dateInput}T${timeInput}`;
 }
 
 /**

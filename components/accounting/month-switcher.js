@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
+import { getMonthSwitcherScrollStyle } from './month-switcher-support.js';
 import { formatAccountingMonth } from './helpers.js';
 import { useAccountingTheme } from './use-accounting-theme.js';
 
@@ -23,6 +24,7 @@ export function MonthSwitcher({ months, value, onChange }) {
   return (
     <ScrollView
       horizontal
+      style={styles.scroll}
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.container}>
       {months.map((month) => {
@@ -56,6 +58,7 @@ export function MonthSwitcher({ months, value, onChange }) {
  */
 function createStyles(colors, spacing, radius, typography) {
   return StyleSheet.create({
+    scroll: getMonthSwitcherScrollStyle(),
     container: {
       gap: spacing.sm,
     },

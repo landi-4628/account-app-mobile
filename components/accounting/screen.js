@@ -1,6 +1,11 @@
 import React from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+import {
+  getAccountingScreenContentStyle,
+  getAccountingScreenSafeAreaEdges,
+} from './screen-support.js';
 import { useAccountingTheme } from './use-accounting-theme.js';
 
 /** @typedef {import('react').ReactNode} ReactNode */
@@ -31,7 +36,7 @@ export function AccountingScreen({
   );
 
   return (
-    <SafeAreaView style={[styles.safeArea, style]}>
+    <SafeAreaView edges={getAccountingScreenSafeAreaEdges()} style={[styles.safeArea, style]}>
       {scrollable ? (
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -58,12 +63,6 @@ function createStyles(colors, spacing) {
     scrollContent: {
       flexGrow: 1,
     },
-    content: {
-      flexGrow: 1,
-      paddingHorizontal: spacing.md,
-      paddingTop: spacing.md,
-      paddingBottom: spacing.xl,
-      gap: spacing.lg,
-    },
+    content: getAccountingScreenContentStyle(spacing),
   });
 }

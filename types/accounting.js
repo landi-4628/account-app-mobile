@@ -15,7 +15,7 @@
  */
 
 /**
- * @typedef {'cat-food' | 'cat-commute' | 'cat-groceries' | 'cat-coffee' | 'cat-salary' | 'cat-freelance'} CategoryId
+ * @typedef {string} CategoryId
  */
 
 /**
@@ -26,13 +26,16 @@
  * @property {number} initialBalance
  * @property {number} currentBalance
  * @property {boolean} isActive
+ * @property {boolean | undefined} [isCustom]
  */
 
 /**
  * @typedef {object} LedgerCategory
  * @property {CategoryId} id
+ * @property {string} name
  * @property {EntryType} type
  * @property {boolean} isActive
+ * @property {boolean | undefined} [isCustom]
  */
 
 /**

@@ -4,6 +4,7 @@ import { formatAccountingMonth } from './helpers.js';
 
 /**
  * @typedef {import('@/types/accounting').LedgerAccount} LedgerAccount
+ * @typedef {import('@/types/accounting').LedgerCategory} LedgerCategory
  * @typedef {import('@/types/accounting').TransactionRecord} TransactionRecord
  */
 
@@ -22,19 +23,24 @@ export function getAccountingMonthLabel(month) {
 }
 
 /**
- * @param {import('@/types/accounting').CategoryId} categoryId
- * @returns {string}
- */
-export function getCategoryLabel(categoryId) {
-  return accountingCategoryLabels[categoryId] ?? categoryId;
-}
-
-/**
  * @param {LedgerAccount[]} accounts
  * @returns {Map<string, string>}
  */
 export function createAccountNameMap(accounts) {
   return new Map(accounts.map((account) => [account.id, account.name]));
+}
+
+/**
+ * @param {LedgerCategory[]} categories
+ * @returns {Map<string, string>}
+ */
+export function createCategoryNameMap(categories) {
+  return new Map(
+    categories.map((category) => [
+      category.id,
+      category.name ?? accountingCategoryLabels[category.id] ?? category.id,
+    ])
+  );
 }
 
 /**

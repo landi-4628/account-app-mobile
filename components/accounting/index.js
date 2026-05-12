@@ -6,6 +6,7 @@ export {
   formatTransactionDateTime,
   getSyncBadgeState,
 } from './helpers.js';
+export { InteractiveCard } from './interactive-card.js';
 export { MonthSwitcher } from './month-switcher.js';
 export { AccountingScreen } from './screen.js';
 export { SectionHeader } from './section-header.js';
@@ -17,7 +18,7 @@ export { TransactionListItem } from './transaction-list-item.js';
 export {
   buildTransactionFormSubmitPayload,
   createTransactionFormDraft,
-  formatDateTimeInput,
+  formatDateInput,
   getTransactionFormAccountOptions,
   getTransactionFormCategoryOptions,
   normalizeDateTimeInput,

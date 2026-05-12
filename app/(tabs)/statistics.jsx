@@ -6,22 +6,26 @@ import { accountingTheme } from '@/constants/accounting-theme';
 import {
   AccountingScreen,
   EmptyState,
+  InteractiveCard,
   MonthSwitcher,
   SectionHeader,
   SummaryCard,
   formatAccountingCurrency,
 } from '@/components/accounting';
 import { getAccountingCategoryLabel } from '@/components/accounting/statistics-profile-support';
-import { getAccountingMonthLabel } from '@/components/accounting/home-details-utils';
+import {
+  createCategoryNameMap,
+  getAccountingMonthLabel,
+} from '@/components/accounting/home-details-utils';
 import { useAccountingTheme } from '@/components/accounting/use-accounting-theme';
 import { useMockApp } from '@/providers/mock-app-provider';
 
-function BreakdownCard({ title, items, totalAmount, emptyDescription }) {
+function BreakdownCard({ title, items, totalAmount, emptyDescription, categoryNameMap }) {
   const { colors, spacing, radius, typography, shadow } = useAccountingTheme();
   const styles = createStyles(colors, spacing, radius, typography, shadow);
 
   return (
-    <View style={styles.card}>
+    <InteractiveCard style={styles.card} shadowStyle={shadow.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.cardTitle}>{title}</Text>
         <Text style={styles.cardMeta}>{formatAccountingCurrency(totalAmount)}</Text>
@@ -40,7 +44,8 @@ function BreakdownCard({ title, items, totalAmount, emptyDescription }) {
                   <View style={[styles.dot, { backgroundColor: accentColor }]} />
                   <View style={styles.breakdownCopy}>
                     <Text style={styles.breakdownLabel}>
-                      {getAccountingCategoryLabel(item.categoryId)}
+                      {categoryNameMap.get(item.categoryId)
+                        ?? getAccountingCategoryLabel(item.categoryId)}
                     </Text>
                     <Text style={styles.breakdownPercent}>
                       {item.percent}%{accountingCopy.statistics.percentSuffix}
@@ -53,13 +58,14 @@ function BreakdownCard({ title, items, totalAmount, emptyDescription }) {
           })}
         </View>
       )}
-    </View>
+    </InteractiveCard>
   );
 }
 
 export default function StatisticsScreen() {
-  const { currentMonthData, actions, availableMonths } = useMockApp();
+  const { currentMonthData, actions, availableMonths, categories } = useMockApp();
   const { statistics, summary, month, transactions } = currentMonthData;
+  const categoryNameMap = React.useMemo(() => createCategoryNameMap(categories), [categories]);
   const showEmptyState =
     transactions.length === 0 &&
     statistics.expenseBreakdown.length === 0 &&
@@ -93,12 +99,14 @@ export default function StatisticsScreen() {
         items={statistics.expenseBreakdown}
         totalAmount={summary.expense}
         emptyDescription={accountingCopy.statistics.expenseEmpty}
+        categoryNameMap={categoryNameMap}
       />
       <BreakdownCard
         title={accountingCopy.statistics.incomeSectionTitle}
         items={statistics.incomeBreakdown}
         totalAmount={summary.income}
         emptyDescription={accountingCopy.statistics.incomeEmpty}
+        categoryNameMap={categoryNameMap}
       />
     </AccountingScreen>
   );

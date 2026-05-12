@@ -1,12 +1,14 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { accountingCopy } from '@/constants/accounting-copy';
 import { useMockApp } from '@/providers/mock-app-provider';
 import {
   AccountingScreen,
   EmptyState,
+  InteractiveCard,
   MonthSwitcher,
   SectionHeader,
   TransactionListItem,
@@ -15,129 +17,219 @@ import {
 import {
   buildDetailsSummaryItems,
   createAccountNameMap,
+  createCategoryNameMap,
   getAccountingMonthLabel,
-  getCategoryLabel,
   groupTransactionsByDay,
 } from '@/components/accounting/home-details-utils.js';
 import { useAccountingTheme } from '@/components/accounting/use-accounting-theme.js';
 
 export default function DetailsScreen() {
   const router = useRouter();
-  const { colors, spacing, radius, typography } = useAccountingTheme();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const { colors, spacing, radius, typography, shadow } = useAccountingTheme();
   const styles = useMemo(
-    () => createStyles(colors, spacing, radius, typography),
-    [colors, spacing, radius, typography]
+    () => createStyles(colors, spacing, radius, typography, shadow),
+    [colors, spacing, radius, typography, shadow]
   );
-  const { actions, accountSummaries, availableMonths, currentMonth, currentMonthData, user } =
-    useMockApp();
+  const {
+    actions,
+    accountSummaries,
+    availableMonths,
+    categories,
+    currentMonth,
+    currentMonthData,
+    user,
+  } = useMockApp();
+  const [activeMenu, setActiveMenu] = useState(
+    /** @type {{ id: string, x: number, y: number } | null} */ (null)
+  );
   const summaryItems = buildDetailsSummaryItems(currentMonthData.summary);
   const accountNameMap = useMemo(() => createAccountNameMap(accountSummaries), [accountSummaries]);
+  const categoryNameMap = useMemo(() => createCategoryNameMap(categories), [categories]);
   const groupedTransactions = useMemo(
     () => groupTransactionsByDay(currentMonthData.transactions, user.timezone),
     [currentMonthData.transactions, user.timezone]
   );
+
   const openNewTransaction = React.useCallback(() => {
     router.push('/transaction/new');
   }, [router]);
+
   const openEditTransaction = React.useCallback(
     (transactionId) => {
+      setActiveMenu(null);
       router.push(`/transaction/${transactionId}`);
     },
     [router]
   );
 
+  const closeTransactionMenu = React.useCallback(() => {
+    setActiveMenu(null);
+  }, []);
+
+  const openTransactionMenu = React.useCallback((transactionId, event) => {
+    const { pageX, pageY } = event.nativeEvent;
+
+    setActiveMenu({
+      id: transactionId,
+      x: pageX,
+      y: pageY,
+    });
+  }, []);
+
+  const deleteTransaction = React.useCallback(
+    (transactionId) => {
+      setActiveMenu(null);
+      actions.deleteTransaction(transactionId);
+    },
+    [actions]
+  );
+
+  const menuPosition = useMemo(() => {
+    if (!activeMenu) {
+      return null;
+    }
+
+    const menuWidth = 164;
+    const estimatedMenuHeight = 112;
+    const left = Math.min(
+      Math.max(activeMenu.x - menuWidth + 20, spacing.md),
+      windowWidth - menuWidth - spacing.md
+    );
+    const top = Math.min(
+      Math.max(activeMenu.y - estimatedMenuHeight, spacing.md),
+      windowHeight - estimatedMenuHeight - spacing.xl
+    );
+
+    return { left, top, width: menuWidth };
+  }, [activeMenu, spacing.md, spacing.xl, windowHeight, windowWidth]);
+
   return (
-    <AccountingScreen>
-      <View style={styles.header}>
-        <View style={styles.headerCopy}>
-          <Text style={styles.title}>{accountingCopy.tabs.details}</Text>
-          <Text style={styles.subtitle}>
-            {`${getAccountingMonthLabel(currentMonth)} · ${currentMonthData.transactions.length} ${accountingCopy.details.monthRecordSuffix}`}
-          </Text>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          onPress={openNewTransaction}
-          style={({ pressed }) => [styles.headerAction, pressed && styles.headerActionPressed]}>
-          <Text style={styles.headerActionLabel}>{accountingCopy.actions.addEntry}</Text>
-        </Pressable>
-      </View>
-
-      <MonthSwitcher months={availableMonths} value={currentMonth} onChange={actions.setCurrentMonth} />
-
-      <View style={styles.summaryStrip}>
-        {summaryItems.map((item) => (
-          <View key={item.key} style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>{item.label}</Text>
-            <Text
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.8}
-              style={[
-                styles.summaryValue,
-                item.tone === 'income'
-                  ? styles.summaryValueIncome
-                  : item.tone === 'expense'
-                    ? styles.summaryValueExpense
-                    : null,
-              ]}>
-              {formatAccountingCurrency(item.value)}
+    <View style={styles.screen}>
+      <AccountingScreen>
+        <View style={styles.header}>
+          <View style={styles.headerCopy}>
+            <Text style={styles.title}>{accountingCopy.tabs.details}</Text>
+            <Text style={styles.subtitle}>
+              {`${getAccountingMonthLabel(currentMonth)} · ${currentMonthData.transactions.length} ${accountingCopy.details.monthRecordSuffix}`}
             </Text>
           </View>
-        ))}
-      </View>
+        </View>
 
-      {groupedTransactions.length > 0 ? (
-        groupedTransactions.map((group) => (
-          <View key={group.key} style={styles.groupSection}>
-            <SectionHeader
-              title={group.label}
-              subtitle={buildGroupSubtitle(group.totalIncome, group.totalExpense)}
-            />
-            <View style={styles.groupList}>
-              {group.transactions.map((transaction) => (
-                <View key={transaction.id} style={styles.transactionRow}>
-                  <View style={styles.transactionCard}>
-                    <TransactionListItem
-                      transaction={transaction}
-                      categoryLabel={getCategoryLabel(transaction.categoryId)}
-                      accountLabel={accountNameMap.get(transaction.accountId) ?? transaction.accountId}
-                      timeZone={user.timezone}
-                      onPress={() => openEditTransaction(transaction.id)}
-                    />
-                  </View>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => openEditTransaction(transaction.id)}
-                    style={({ pressed }) => [
-                      styles.editButton,
-                      pressed && styles.secondaryButtonPressed,
-                    ]}>
-                    <Text style={styles.editLabel}>{accountingCopy.actions.edit}</Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => actions.deleteTransaction(transaction.id)}
-                    style={({ pressed }) => [
-                      styles.deleteButton,
-                      pressed && styles.secondaryButtonPressed,
-                    ]}>
-                    <Text style={styles.deleteLabel}>{accountingCopy.actions.delete}</Text>
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          </View>
-        ))
-      ) : (
-        <EmptyState
-          title={accountingCopy.details.emptyTitle}
-          description={accountingCopy.details.emptyDescription}
-          actionLabel={accountingCopy.actions.addEntry}
-          onActionPress={openNewTransaction}
+        <MonthSwitcher
+          months={availableMonths}
+          value={currentMonth}
+          onChange={actions.setCurrentMonth}
         />
-      )}
-    </AccountingScreen>
+
+        <View style={styles.summaryStrip}>
+          {summaryItems.map((item) => (
+            <InteractiveCard key={item.key} style={styles.summaryCard} shadowStyle={shadow.card}>
+              <Text style={styles.summaryLabel}>{item.label}</Text>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+                style={[
+                  styles.summaryValue,
+                  item.tone === 'income'
+                    ? styles.summaryValueIncome
+                    : item.tone === 'expense'
+                      ? styles.summaryValueExpense
+                      : null,
+                ]}>
+                {formatAccountingCurrency(item.value)}
+              </Text>
+            </InteractiveCard>
+          ))}
+        </View>
+
+        {groupedTransactions.length > 0 ? (
+          groupedTransactions.map((group) => (
+            <View key={group.key} style={styles.groupSection}>
+              <SectionHeader
+                title={group.label}
+                subtitle={buildGroupSubtitle(group.totalIncome, group.totalExpense)}
+              />
+              <View style={styles.groupList}>
+                {group.transactions.map((transaction) => (
+                  <TransactionListItem
+                    key={transaction.id}
+                    transaction={transaction}
+                    categoryLabel={categoryNameMap.get(transaction.categoryId) ?? transaction.categoryId}
+                    accountLabel={accountNameMap.get(transaction.accountId) ?? transaction.accountId}
+                    timeZone={user.timezone}
+                    onLongPress={(item, event) => openTransactionMenu(item.id, event)}
+                  />
+                ))}
+              </View>
+            </View>
+          ))
+        ) : (
+          <EmptyState
+            title={accountingCopy.details.emptyTitle}
+            description={accountingCopy.details.emptyDescription}
+            actionLabel={accountingCopy.actions.addEntry}
+            onActionPress={openNewTransaction}
+          />
+        )}
+      </AccountingScreen>
+
+      <Pressable
+        accessibilityLabel={accountingCopy.actions.addEntry}
+        accessibilityRole="button"
+        onPress={openNewTransaction}
+        style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}>
+        <Ionicons name="add" size={28} color={colors.textInverse} />
+      </Pressable>
+
+      <Modal
+        transparent
+        visible={Boolean(activeMenu && menuPosition)}
+        animationType="fade"
+        onRequestClose={closeTransactionMenu}>
+        <Pressable style={styles.menuBackdrop} onPress={closeTransactionMenu}>
+          {menuPosition && activeMenu ? (
+            <View style={[styles.menuCard, menuPosition]}>
+              <MenuAction
+                icon="create-outline"
+                label={accountingCopy.actions.edit}
+                onPress={() => openEditTransaction(activeMenu.id)}
+                styles={styles}
+              />
+              <View style={styles.menuDivider} />
+              <MenuAction
+                icon="trash-outline"
+                label={accountingCopy.actions.delete}
+                tone="danger"
+                onPress={() => deleteTransaction(activeMenu.id)}
+                styles={styles}
+              />
+            </View>
+          ) : null}
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
+
+function MenuAction({ icon, label, tone = 'default', onPress, styles }) {
+  const isDanger = tone === 'danger';
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.menuAction, pressed && styles.menuActionPressed]}>
+      <Ionicons
+        size={18}
+        name={icon}
+        color={isDanger ? styles._dangerColor.color : styles._defaultActionColor.color}
+      />
+      <Text style={isDanger ? styles.menuActionLabelDanger : styles.menuActionLabel}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -153,8 +245,11 @@ function buildGroupSubtitle(totalIncome, totalExpense) {
   return `-${formatAccountingCurrency(totalExpense)}`;
 }
 
-function createStyles(colors, spacing, radius, typography) {
+function createStyles(colors, spacing, radius, typography, shadow) {
   return StyleSheet.create({
+    screen: {
+      flex: 1,
+    },
     header: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -164,22 +259,6 @@ function createStyles(colors, spacing, radius, typography) {
     headerCopy: {
       flex: 1,
       gap: 4,
-    },
-    headerAction: {
-      minHeight: 40,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: radius.pill,
-      backgroundColor: colors.brandSoft,
-      paddingHorizontal: spacing.md,
-    },
-    headerActionPressed: {
-      opacity: 0.85,
-    },
-    headerActionLabel: {
-      fontSize: typography.body,
-      fontWeight: '600',
-      color: colors.brandContrast,
     },
     title: {
       fontSize: typography.headline,
@@ -202,6 +281,7 @@ function createStyles(colors, spacing, radius, typography) {
       borderColor: colors.border,
       padding: spacing.sm,
       gap: 6,
+      ...shadow.card,
     },
     summaryLabel: {
       fontSize: typography.caption,
@@ -224,46 +304,72 @@ function createStyles(colors, spacing, radius, typography) {
     groupList: {
       gap: spacing.sm,
     },
-    transactionRow: {
-      flexDirection: 'row',
-      alignItems: 'stretch',
-      gap: spacing.sm,
-    },
-    transactionCard: {
+    menuBackdrop: {
       flex: 1,
+      backgroundColor: 'rgba(15, 23, 42, 0.08)',
     },
-    editButton: {
-      width: 68,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: radius.md,
+    menuCard: {
+      position: 'absolute',
+      borderRadius: radius.lg,
+      backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
-      backgroundColor: colors.surface,
-      paddingHorizontal: spacing.sm,
+      paddingVertical: 6,
+      shadowColor: '#0f172a',
+      shadowOpacity: 0.16,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 10,
     },
-    deleteButton: {
-      width: 68,
+    menuAction: {
+      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-      paddingHorizontal: spacing.sm,
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
     },
-    secondaryButtonPressed: {
-      opacity: 0.8,
+    menuActionPressed: {
+      backgroundColor: colors.surfaceAlt,
     },
-    editLabel: {
+    menuActionLabel: {
       fontSize: typography.body,
       fontWeight: '600',
-      color: colors.brandContrast,
+      color: colors.text,
     },
-    deleteLabel: {
+    menuActionLabelDanger: {
       fontSize: typography.body,
       fontWeight: '600',
       color: colors.danger,
+    },
+    menuDivider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: 2,
+    },
+    _defaultActionColor: {
+      color: colors.text,
+    },
+    _dangerColor: {
+      color: colors.danger,
+    },
+    fab: {
+      position: 'absolute',
+      right: spacing.lg,
+      bottom: spacing.xl,
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.brand,
+      shadowColor: '#0f172a',
+      shadowOpacity: 0.2,
+      shadowRadius: 16,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 10,
+    },
+    fabPressed: {
+      opacity: 0.88,
     },
   });
 }
