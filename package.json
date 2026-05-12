@@ -9,6 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "test:state": "node --experimental-default-type=module --test state/mock-app-state.test.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

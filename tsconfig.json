@@ -16,6 +16,8 @@
     "constants/accounting-copy.js",
     "constants/accounting-theme.js",
     "data/mock/**/*.js",
+    "providers/mock-app-provider.js",
+    "state/mock-app-state.js",
     "types/accounting.js",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
