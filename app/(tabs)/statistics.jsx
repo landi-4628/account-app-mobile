@@ -3,11 +3,11 @@ import { StyleSheet } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 
-export default function HomeScreen() {
+export default function StatisticsScreen() {
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title">首页</ThemedText>
-      <ThemedText>账户总览占位页</ThemedText>
+      <ThemedText type="title">统计</ThemedText>
+      <ThemedText>收支统计占位页</ThemedText>
     </ThemedView>
   );
 }
