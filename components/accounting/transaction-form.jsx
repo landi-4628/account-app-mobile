@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { accountingCopy } from '../../constants/accounting-copy.js';
 import { SyncBadge } from './sync-badge.js';
 import {
   buildTransactionFormSubmitPayload,
@@ -10,7 +11,6 @@ import {
 } from './transaction-form-support.js';
 import { useAccountingTheme } from './use-accounting-theme.js';
 
-/** @typedef {import('./transaction-form-support.js').TransactionFormDraft} TransactionFormDraft */
 /** @typedef {import('./transaction-form-support.js').TransactionFormErrors} TransactionFormErrors */
 /** @typedef {import('./transaction-form-support.js').TransactionFormInitialValues} TransactionFormInitialValues */
 /** @typedef {import('./transaction-form-support.js').TransactionFormOption} TransactionFormOption */
@@ -24,15 +24,15 @@ import { useAccountingTheme } from './use-accounting-theme.js';
 
 /** @type {Array<{ value: EntryType, label: string }>} */
 const entryTypeOptions = [
-  { value: 'expense', label: 'Expense' },
-  { value: 'income', label: 'Income' },
+  { value: 'expense', label: accountingCopy.entryType.expense },
+  { value: 'income', label: accountingCopy.entryType.income },
 ];
 
 /** @type {Array<{ value: SyncStatus, label: string }>} */
 const defaultSyncStatusOptions = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'synced', label: 'Synced' },
-  { value: 'failed', label: 'Failed' },
+  { value: 'pending', label: accountingCopy.syncStatus.pending },
+  { value: 'synced', label: accountingCopy.syncStatus.synced },
+  { value: 'failed', label: accountingCopy.syncStatus.failed },
 ];
 
 /**
@@ -73,7 +73,7 @@ export function TransactionForm({
   defaultSyncStatus = 'pending',
   timeZoneOffset = '+00:00',
   submitLabel,
-  deleteLabel = 'Delete',
+  deleteLabel = accountingCopy.actions.delete,
   disabled = false,
   busy = false,
   onSubmit,
@@ -140,13 +140,14 @@ export function TransactionForm({
     }
   }, [draft.categoryId, visibleCategories]);
 
-  const submitButtonLabel = submitLabel ?? (mode === 'edit' ? 'Save changes' : 'Create transaction');
+  const submitButtonLabel =
+    submitLabel ?? (mode === 'edit' ? accountingCopy.actions.save : accountingCopy.actions.create);
   const disableActions = disabled || busy;
 
   return (
     <View style={styles.container}>
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Type</Text>
+        <Text style={styles.sectionLabel}>{accountingCopy.form.type}</Text>
         <View style={styles.segmentedRow}>
           {entryTypeOptions.map((option) => (
             <OptionChip
@@ -166,12 +167,12 @@ export function TransactionForm({
         </View>
       </View>
 
-      <FieldBlock label="Amount" error={errors.amountInput} styles={styles}>
+      <FieldBlock label={accountingCopy.form.amount} error={errors.amountInput} styles={styles}>
         <TextInput
           editable={!disableActions}
           keyboardType="decimal-pad"
           onChangeText={(amountInput) => setDraft((currentDraft) => ({ ...currentDraft, amountInput }))}
-          placeholder="0.00"
+          placeholder={accountingCopy.form.amountPlaceholder}
           placeholderTextColor={colors.textMuted}
           style={styles.textInput}
           value={draft.amountInput}
@@ -179,7 +180,7 @@ export function TransactionForm({
       </FieldBlock>
 
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Category</Text>
+        <Text style={styles.sectionLabel}>{accountingCopy.form.category}</Text>
         <View style={styles.optionGrid}>
           {visibleCategories.map((option) => (
             <OptionChip
@@ -198,7 +199,7 @@ export function TransactionForm({
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Account</Text>
+        <Text style={styles.sectionLabel}>{accountingCopy.form.account}</Text>
         <View style={styles.optionGrid}>
           {filteredAccounts.map((option) => (
             <OptionChip
@@ -216,25 +217,25 @@ export function TransactionForm({
         {errors.accountId ? <Text style={styles.errorText}>{errors.accountId}</Text> : null}
       </View>
 
-      <FieldBlock label="Date and time" error={errors.dateTimeInput} styles={styles}>
+      <FieldBlock label={accountingCopy.form.dateTime} error={errors.dateTimeInput} styles={styles}>
         <TextInput
           autoCapitalize="none"
           autoCorrect={false}
           editable={!disableActions}
           onChangeText={(dateTimeInput) => setDraft((currentDraft) => ({ ...currentDraft, dateTimeInput }))}
-          placeholder="YYYY-MM-DDTHH:mm"
+          placeholder={accountingCopy.form.dateTimePlaceholder}
           placeholderTextColor={colors.textMuted}
           style={styles.textInput}
           value={draft.dateTimeInput}
         />
       </FieldBlock>
 
-      <FieldBlock label="Note" styles={styles}>
+      <FieldBlock label={accountingCopy.form.note} styles={styles}>
         <TextInput
           editable={!disableActions}
           multiline
           onChangeText={(note) => setDraft((currentDraft) => ({ ...currentDraft, note }))}
-          placeholder="Add context"
+          placeholder={accountingCopy.form.notePlaceholder}
           placeholderTextColor={colors.textMuted}
           style={[styles.textInput, styles.noteInput]}
           textAlignVertical="top"
@@ -244,8 +245,11 @@ export function TransactionForm({
 
       <View style={styles.section}>
         <View style={styles.syncHeader}>
-          <Text style={styles.sectionLabel}>Sync status</Text>
-          <SyncBadge status={draft.syncStatus} label={syncStatusOptions.find((option) => option.value === draft.syncStatus)?.label} />
+          <Text style={styles.sectionLabel}>{accountingCopy.form.syncStatus}</Text>
+          <SyncBadge
+            status={draft.syncStatus}
+            label={syncStatusOptions.find((option) => option.value === draft.syncStatus)?.label}
+          />
         </View>
         <View style={styles.optionGrid}>
           {syncStatusOptions.map((option) => (
@@ -283,7 +287,9 @@ export function TransactionForm({
             disableActions && styles.buttonDisabled,
             pressed && !disableActions ? styles.primaryButtonPressed : null,
           ]}>
-          <Text style={styles.primaryButtonLabel}>{busy ? 'Saving...' : submitButtonLabel}</Text>
+          <Text style={styles.primaryButtonLabel}>
+            {busy ? accountingCopy.form.saving : submitButtonLabel}
+          </Text>
         </Pressable>
 
         {mode === 'edit' && onDelete ? (
@@ -343,7 +349,9 @@ function OptionChip({ active, disabled, label, onPress, styles }) {
         disabled ? styles.buttonDisabled : null,
         pressed && !disabled ? styles.optionChipPressed : null,
       ]}>
-      <Text style={[styles.optionChipLabel, active ? styles.optionChipLabelActive : null]}>{label}</Text>
+      <Text style={[styles.optionChipLabel, active ? styles.optionChipLabelActive : null]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -373,7 +381,6 @@ function createStyles(colors, spacing, radius, typography, cardShadow) {
       fontSize: typography.caption,
       fontWeight: '700',
       color: colors.textSecondary,
-      textTransform: 'uppercase',
     },
     segmentedRow: {
       flexDirection: 'row',

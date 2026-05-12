@@ -1,13 +1,8 @@
-import { accountingCategoryLabels } from '../../constants/accounting-copy.js';
+import { accountingCategoryLabels, accountingCopy } from '../../constants/accounting-copy.js';
 
 import { formatTransactionDateTime } from './helpers.js';
 
-const accountTypeLabels = {
-  cash: 'Cash',
-  bank: 'Bank card',
-  alipay: 'Alipay',
-  wechat: 'WeChat wallet',
-};
+const accountTypeLabels = accountingCopy.accountTypes;
 
 /**
  * @param {import('../../types/accounting').CategoryId} categoryId
@@ -28,21 +23,21 @@ export function getAccountTypeLabel(accountType) {
  * @param {string | undefined} timeZone
  */
 export function getSyncSummaryDetail(syncSummary, timeZone) {
-  const updatedAt = `Last update ${formatTransactionDateTime(syncSummary.updatedAt, timeZone)}`;
+  const updatedAt = `${accountingCopy.profile.syncUpdatedPrefix} ${formatTransactionDateTime(syncSummary.updatedAt, timeZone)}`;
 
   if (syncSummary.failedCount > 0 && syncSummary.pendingCount > 0) {
-    return `${updatedAt} | ${syncSummary.failedCount} failed, ${syncSummary.pendingCount} pending`;
+    return `${updatedAt} | 失败 ${syncSummary.failedCount} 条，待同步 ${syncSummary.pendingCount} 条`;
   }
 
   if (syncSummary.failedCount > 0) {
-    return `${updatedAt} | ${syncSummary.failedCount} failed`;
+    return `${updatedAt} | 失败 ${syncSummary.failedCount} 条`;
   }
 
   if (syncSummary.pendingCount > 0) {
-    return `${updatedAt} | ${syncSummary.pendingCount} pending`;
+    return `${updatedAt} | 待同步 ${syncSummary.pendingCount} 条`;
   }
 
-  return `${updatedAt} | All changes synced`;
+  return `${updatedAt} | ${accountingCopy.profile.allSynced}`;
 }
 
 /**
@@ -51,11 +46,11 @@ export function getSyncSummaryDetail(syncSummary, timeZone) {
  */
 export function getSyncActionLabel(status) {
   if (status === 'failed') {
-    return 'Retry sync';
+    return accountingCopy.actions.retrySync;
   }
 
   if (status === 'pending') {
-    return 'Sync now';
+    return accountingCopy.actions.syncNow;
   }
 
   return null;

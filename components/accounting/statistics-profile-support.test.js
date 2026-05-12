@@ -14,8 +14,8 @@ test('maps accounting category ids to display labels', () => {
 });
 
 test('maps account types to readable labels', () => {
-  assert.equal(getAccountTypeLabel('cash'), 'Cash');
-  assert.equal(getAccountTypeLabel('wechat'), 'WeChat wallet');
+  assert.equal(getAccountTypeLabel('cash'), '现金');
+  assert.equal(getAccountTypeLabel('wechat'), '微信');
 });
 
 test('builds sync detail copy from updated time and pending or failed counts', () => {
@@ -29,7 +29,7 @@ test('builds sync detail copy from updated time and pending or failed counts', (
       },
       'Asia/Shanghai'
     ),
-    'Last update May 11, 12:40 | 1 failed, 1 pending'
+    '最近更新 5月11日 12:40 | 失败 1 条，待同步 1 条'
   );
 
   assert.equal(
@@ -42,12 +42,12 @@ test('builds sync detail copy from updated time and pending or failed counts', (
       },
       'Asia/Shanghai'
     ),
-    'Last update May 11, 12:40 | All changes synced'
+    '最近更新 5月11日 12:40 | 全部变更已同步'
   );
 });
 
 test('maps sync states to the expected profile action labels', () => {
-  assert.equal(getSyncActionLabel('failed'), 'Retry sync');
-  assert.equal(getSyncActionLabel('pending'), 'Sync now');
+  assert.equal(getSyncActionLabel('failed'), '重试同步');
+  assert.equal(getSyncActionLabel('pending'), '立即同步');
   assert.equal(getSyncActionLabel('synced'), null);
 });

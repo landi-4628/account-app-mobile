@@ -40,7 +40,7 @@ export default function NewTransactionScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: accountingCopy.actions.create }} />
+      <Stack.Screen options={{ title: accountingCopy.actions.addEntry }} />
       <AccountingScreen>
         <TransactionForm
           accountOptions={accountOptions}
@@ -49,7 +49,7 @@ export default function NewTransactionScreen() {
           defaultSyncStatus="pending"
           defaultType={selectedEntryType}
           mode="create"
-          submitLabel={accountingCopy.actions.create}
+          submitLabel={accountingCopy.actions.addEntry}
           timeZoneOffset={DEFAULT_TIME_ZONE_OFFSET}
           onSubmit={handleSubmit}
         />

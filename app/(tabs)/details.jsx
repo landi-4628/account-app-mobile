@@ -31,10 +31,7 @@ export default function DetailsScreen() {
   const { actions, accountSummaries, availableMonths, currentMonth, currentMonthData, user } =
     useMockApp();
   const summaryItems = buildDetailsSummaryItems(currentMonthData.summary);
-  const accountNameMap = useMemo(
-    () => createAccountNameMap(accountSummaries),
-    [accountSummaries]
-  );
+  const accountNameMap = useMemo(() => createAccountNameMap(accountSummaries), [accountSummaries]);
   const groupedTransactions = useMemo(
     () => groupTransactionsByDay(currentMonthData.transactions, user.timezone),
     [currentMonthData.transactions, user.timezone]
@@ -55,7 +52,7 @@ export default function DetailsScreen() {
         <View style={styles.headerCopy}>
           <Text style={styles.title}>{accountingCopy.tabs.details}</Text>
           <Text style={styles.subtitle}>
-            {`${getAccountingMonthLabel(currentMonth)} · ${currentMonthData.transactions.length} records`}
+            {`${getAccountingMonthLabel(currentMonth)} · ${currentMonthData.transactions.length} ${accountingCopy.details.monthRecordSuffix}`}
           </Text>
         </View>
         <Pressable
@@ -66,11 +63,7 @@ export default function DetailsScreen() {
         </Pressable>
       </View>
 
-      <MonthSwitcher
-        months={availableMonths}
-        value={currentMonth}
-        onChange={actions.setCurrentMonth}
-      />
+      <MonthSwitcher months={availableMonths} value={currentMonth} onChange={actions.setCurrentMonth} />
 
       <View style={styles.summaryStrip}>
         {summaryItems.map((item) => (
@@ -108,9 +101,7 @@ export default function DetailsScreen() {
                     <TransactionListItem
                       transaction={transaction}
                       categoryLabel={getCategoryLabel(transaction.categoryId)}
-                      accountLabel={
-                        accountNameMap.get(transaction.accountId) ?? transaction.accountId
-                      }
+                      accountLabel={accountNameMap.get(transaction.accountId) ?? transaction.accountId}
                       timeZone={user.timezone}
                       onPress={() => openEditTransaction(transaction.id)}
                     />
@@ -140,8 +131,8 @@ export default function DetailsScreen() {
         ))
       ) : (
         <EmptyState
-          title="No records for this month"
-          description="Switch months or add a new entry."
+          title={accountingCopy.details.emptyTitle}
+          description={accountingCopy.details.emptyDescription}
           actionLabel={accountingCopy.actions.addEntry}
           onActionPress={openNewTransaction}
         />

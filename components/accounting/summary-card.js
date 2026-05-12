@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { accountingCopy } from '../../constants/accounting-copy.js';
 import { formatAccountingCurrency, formatAccountingMonth } from './helpers.js';
 import { SyncBadge } from './sync-badge.js';
 import { useAccountingTheme } from './use-accounting-theme.js';
@@ -44,7 +45,7 @@ export function SummaryCard({
   syncStatus,
   pendingCount = 0,
   failedCount = 0,
-  balanceLabel = 'Net balance',
+  balanceLabel = accountingCopy.home.balanceLabel,
 }) {
   const { colors, spacing, radius, typography, shadow } = useAccountingTheme();
   const styles = createStyles(colors, spacing, radius, typography, shadow);
@@ -64,8 +65,8 @@ export function SummaryCard({
       </View>
       <Text style={styles.balanceValue}>{formatAccountingCurrency(balance)}</Text>
       <View style={styles.metrics}>
-        <Metric label="Income" value={income} tone="income" styles={styles} />
-        <Metric label="Expense" value={expense} tone="expense" styles={styles} />
+        <Metric label={accountingCopy.entryType.income} value={income} tone="income" styles={styles} />
+        <Metric label={accountingCopy.entryType.expense} value={expense} tone="expense" styles={styles} />
       </View>
     </View>
   );

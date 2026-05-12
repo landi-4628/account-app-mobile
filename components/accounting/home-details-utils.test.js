@@ -42,7 +42,7 @@ const transactions = [
 
 test('uses configured month labels before falling back to formatter output', () => {
   assert.equal(getAccountingMonthLabel('2026-05'), '2026年5月');
-  assert.equal(getAccountingMonthLabel('2026-03'), 'Mar 2026');
+  assert.equal(getAccountingMonthLabel('2026-03'), '2026年3月');
 });
 
 test('groups transactions into today, yesterday, and dated sections in ledger timezone order', () => {
@@ -59,14 +59,14 @@ test('groups transactions into today, yesterday, and dated sections in ledger ti
     [
       {
         key: '2026-05-12',
-        label: 'Today',
+        label: '今天',
         totalIncome: 0,
         totalExpense: 3200,
         ids: ['tx-1'],
       },
       {
         key: '2026-05-11',
-        label: 'Yesterday',
+        label: '昨天',
         totalIncome: 1200000,
         totalExpense: 600,
         ids: ['tx-2', 'tx-3'],
@@ -83,9 +83,9 @@ test('builds details summary items in the visual order used by the strip', () =>
       balance: 1440520,
     }),
     [
-      { key: 'income', label: 'Income', value: 1460000, tone: 'income' },
-      { key: 'expense', label: 'Expense', value: 19480, tone: 'expense' },
-      { key: 'balance', label: 'Balance', value: 1440520, tone: 'default' },
+      { key: 'income', label: '收入', value: 1460000, tone: 'income' },
+      { key: 'expense', label: '支出', value: 19480, tone: 'expense' },
+      { key: 'balance', label: '结余', value: 1440520, tone: 'default' },
     ]
   );
 });

@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { accountingCopy } from '@/constants/accounting-copy';
 import { accountingTheme } from '@/constants/accounting-theme';
 import {
   AccountingScreen,
@@ -11,6 +12,7 @@ import {
   formatAccountingCurrency,
 } from '@/components/accounting';
 import { getAccountingCategoryLabel } from '@/components/accounting/statistics-profile-support';
+import { getAccountingMonthLabel } from '@/components/accounting/home-details-utils';
 import { useAccountingTheme } from '@/components/accounting/use-accounting-theme';
 import { useMockApp } from '@/providers/mock-app-provider';
 
@@ -40,7 +42,9 @@ function BreakdownCard({ title, items, totalAmount, emptyDescription }) {
                     <Text style={styles.breakdownLabel}>
                       {getAccountingCategoryLabel(item.categoryId)}
                     </Text>
-                    <Text style={styles.breakdownPercent}>{item.percent}% of total</Text>
+                    <Text style={styles.breakdownPercent}>
+                      {item.percent}%{accountingCopy.statistics.percentSuffix}
+                    </Text>
                   </View>
                 </View>
                 <Text style={styles.breakdownAmount}>{formatAccountingCurrency(item.amount)}</Text>
@@ -64,8 +68,8 @@ export default function StatisticsScreen() {
   return (
     <AccountingScreen>
       <SectionHeader
-        title="Statistics"
-        subtitle={`${statistics.transactionCount} transactions in ${month}`}
+        title={accountingCopy.statistics.title}
+        subtitle={`${statistics.transactionCount} ${accountingCopy.statistics.subtitleSuffix} · ${getAccountingMonthLabel(month)}`}
       />
       <MonthSwitcher months={availableMonths} value={month} onChange={actions.setCurrentMonth} />
       <SummaryCard
@@ -76,25 +80,25 @@ export default function StatisticsScreen() {
         syncStatus={summary.syncStatus}
         pendingCount={summary.pendingCount}
         failedCount={summary.failedCount}
-        balanceLabel="Month balance"
+        balanceLabel={accountingCopy.statistics.balanceLabel}
       />
       {showEmptyState ? (
         <EmptyState
-          title="No statistics yet"
-          description="Add a few mock transactions and this month will start to fill in."
+          title={accountingCopy.statistics.emptyTitle}
+          description={accountingCopy.statistics.emptyDescription}
         />
       ) : null}
       <BreakdownCard
-        title="Expense categories"
+        title={accountingCopy.statistics.expenseSectionTitle}
         items={statistics.expenseBreakdown}
         totalAmount={summary.expense}
-        emptyDescription="No expense entries for this month."
+        emptyDescription={accountingCopy.statistics.expenseEmpty}
       />
       <BreakdownCard
-        title="Income categories"
+        title={accountingCopy.statistics.incomeSectionTitle}
         items={statistics.incomeBreakdown}
         totalAmount={summary.income}
-        emptyDescription="No income entries for this month."
+        emptyDescription={accountingCopy.statistics.incomeEmpty}
       />
     </AccountingScreen>
   );

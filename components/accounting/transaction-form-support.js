@@ -1,6 +1,8 @@
 /** @typedef {import('@/types/accounting').EntryType} EntryType */
 /** @typedef {import('@/types/accounting').SyncStatus} SyncStatus */
 
+import { accountingCopy } from '../../constants/accounting-copy.js';
+
 /**
  * @typedef {{
  *   value: string,
@@ -135,19 +137,19 @@ export function buildTransactionFormSubmitPayload(
   const amount = parseAmountInput(draft.amountInput);
 
   if (!amount || amount <= 0) {
-    errors.amountInput = 'Enter an amount greater than 0.';
+    errors.amountInput = accountingCopy.form.errors.amount;
   }
 
   if (!draft.categoryId) {
-    errors.categoryId = 'Choose a category.';
+    errors.categoryId = accountingCopy.form.errors.category;
   }
 
   if (!draft.accountId) {
-    errors.accountId = 'Choose an account.';
+    errors.accountId = accountingCopy.form.errors.account;
   }
 
   if (!DATE_TIME_INPUT_PATTERN.test(draft.dateTimeInput)) {
-    errors.dateTimeInput = 'Enter date and time as YYYY-MM-DDTHH:mm.';
+    errors.dateTimeInput = accountingCopy.form.errors.dateTime;
   }
 
   if (Object.keys(errors).length > 0) {

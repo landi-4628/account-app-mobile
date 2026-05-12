@@ -14,27 +14,27 @@ test('formats accounting currency in CNY with sign support', () => {
 });
 
 test('formats ISO month keys into a compact label', () => {
-  assert.equal(formatAccountingMonth('2026-05'), 'May 2026');
+  assert.equal(formatAccountingMonth('2026-05'), '2026年5月');
 });
 
 test('formats transaction timestamps in the supplied ledger timezone', () => {
   const value = '2026-05-11T12:30:00+08:00';
 
-  assert.equal(formatTransactionDateTime(value, 'Asia/Shanghai'), 'May 11, 12:30');
-  assert.equal(formatTransactionDateTime(value, 'UTC'), 'May 11, 04:30');
+  assert.equal(formatTransactionDateTime(value, 'Asia/Shanghai'), '5月11日 12:30');
+  assert.equal(formatTransactionDateTime(value, 'UTC'), '5月11日 04:30');
 });
 
 test('maps sync states to reusable visual metadata', () => {
   assert.deepEqual(getSyncBadgeState('pending', { pendingCount: 2 }), {
     tone: 'warning',
-    label: '2 pending',
+    label: '待同步 2 条',
   });
   assert.deepEqual(getSyncBadgeState('failed', { failedCount: 1 }), {
     tone: 'danger',
-    label: '1 failed',
+    label: '失败 1 条',
   });
   assert.deepEqual(getSyncBadgeState('synced'), {
     tone: 'success',
-    label: 'Synced',
+    label: '已同步',
   });
 });

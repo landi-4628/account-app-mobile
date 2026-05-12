@@ -128,10 +128,10 @@ test('returns field errors when submit payload input is incomplete or invalid', 
     {
       values: null,
       errors: {
-        amountInput: 'Enter an amount greater than 0.',
-        categoryId: 'Choose a category.',
-        accountId: 'Choose an account.',
-        dateTimeInput: 'Enter date and time as YYYY-MM-DDTHH:mm.',
+        amountInput: '请输入大于 0 的金额',
+        categoryId: '请选择分类',
+        accountId: '请选择账户',
+        dateTimeInput: '请输入正确的时间，格式为 YYYY-MM-DDTHH:mm',
       },
     }
   );

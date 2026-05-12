@@ -70,9 +70,9 @@ export default function EditTransactionScreen() {
         <Stack.Screen options={{ title: accountingCopy.actions.edit }} />
         <AccountingScreen>
           <EmptyState
-            title="Transaction not found"
-            description="The requested transaction no longer exists in the mock store."
-            actionLabel="Back to details"
+            title={accountingCopy.form.notFoundTitle}
+            description={accountingCopy.form.notFoundDescription}
+            actionLabel={accountingCopy.actions.backToDetails}
             onActionPress={() => router.replace('/details')}
           />
         </AccountingScreen>

@@ -39,7 +39,7 @@ export default function HomeScreen() {
   const recentTransactions = currentMonthData.transactions.slice(0, 4);
   const accountNameMap = useMemo(() => createAccountNameMap(accountSummaries), [accountSummaries]);
   const monthLabel = getAccountingMonthLabel(currentMonth);
-  const syncDetail = `Updated ${formatTransactionDateTime(syncSummary.updatedAt, user.timezone)}`;
+  const syncDetail = `${accountingCopy.home.updatedPrefix} ${formatTransactionDateTime(syncSummary.updatedAt, user.timezone)}`;
 
   return (
     <AccountingScreen contentContainerStyle={undefined} style={undefined}>
@@ -71,7 +71,7 @@ export default function HomeScreen() {
       <View style={styles.section}>
         <SectionHeader
           title={accountingCopy.actions.accounts}
-          subtitle={`${accountSummaries.length} active balance views`}
+          subtitle={`${accountSummaries.length} ${accountingCopy.home.accountsSubtitleSuffix}`}
           actionLabel={undefined}
           onActionPress={undefined}
         />
@@ -85,7 +85,7 @@ export default function HomeScreen() {
       <View style={styles.section}>
         <SectionHeader
           title={accountingCopy.home.recentTransactions}
-          subtitle={`${currentMonthData.transactions.length} records this month`}
+          subtitle={`${currentMonthData.transactions.length} ${accountingCopy.home.transactionSubtitleSuffix}`}
           actionLabel={accountingCopy.actions.addEntry}
           onActionPress={openNewTransaction}
         />

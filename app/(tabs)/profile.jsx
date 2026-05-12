@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { accountingCopy } from '@/constants/accounting-copy';
 import {
   AccountSummaryRow,
   AccountingScreen,
@@ -50,23 +51,23 @@ export default function ProfileScreen() {
   const syncActionLabel = getSyncActionLabel(syncSummary.status);
   const syncTarget = useMemo(() => getSyncTargetTransaction(transactions), [transactions]);
   const profileRows = [
-    { label: 'Ledger', value: user.ledgerName },
-    { label: 'Email', value: user.email },
-    { label: 'Currency', value: user.currency },
-    { label: 'Timezone', value: user.timezone },
+    { label: accountingCopy.profile.ledger, value: user.ledgerName },
+    { label: accountingCopy.profile.email, value: user.email },
+    { label: accountingCopy.profile.currency, value: user.currency },
+    { label: accountingCopy.profile.timeZone, value: user.timezone },
   ];
   const workspaceRows = [
     {
-      label: 'Default account',
+      label: accountingCopy.profile.defaultAccount,
       value:
         accountSummaries.find((account) => account.id === user.defaultAccountId)?.name ??
         user.defaultAccountId,
     },
     {
-      label: 'Active accounts',
+      label: accountingCopy.profile.activeAccounts,
       value: String(accountSummaries.filter((account) => account.isActive).length),
     },
-    { label: 'Mock mode', value: 'Local-only data' },
+    { label: accountingCopy.profile.mockMode, value: accountingCopy.profile.mockModeValue },
   ];
 
   const handleSyncAction = () => {
@@ -80,22 +81,22 @@ export default function ProfileScreen() {
   return (
     <AccountingScreen>
       <SectionHeader
-        title="Profile"
-        subtitle="Mock account, balances, and sync state"
+        title={accountingCopy.profile.title}
+        subtitle={accountingCopy.profile.subtitle}
       />
       <InfoCard title={user.name} rows={profileRows} />
       <SyncSummaryRow
         status={syncSummary.status}
         pendingCount={syncSummary.pendingCount}
         failedCount={syncSummary.failedCount}
-        label="Sync status"
+        label={accountingCopy.profile.syncStatus}
         detail={getSyncSummaryDetail(syncSummary, user.timezone)}
         actionLabel={syncActionLabel ?? undefined}
         onActionPress={syncActionLabel ? handleSyncAction : undefined}
       />
-      <InfoCard title="Workspace" rows={workspaceRows} />
+      <InfoCard title={accountingCopy.profile.workspace} rows={workspaceRows} />
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Accounts</Text>
+        <Text style={styles.sectionTitle}>{accountingCopy.profile.accounts}</Text>
         <View style={styles.sectionBody}>
           {accountSummaries.map((account) => (
             <AccountSummaryRow

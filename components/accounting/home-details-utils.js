@@ -1,4 +1,4 @@
-import { accountingCategoryLabels, accountingMonthLabels } from '../../constants/accounting-copy.js';
+import { accountingCategoryLabels, accountingCopy, accountingMonthLabels } from '../../constants/accounting-copy.js';
 
 import { formatAccountingMonth } from './helpers.js';
 
@@ -7,8 +7,8 @@ import { formatAccountingMonth } from './helpers.js';
  * @typedef {import('@/types/accounting').TransactionRecord} TransactionRecord
  */
 
-const dayLabelFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
+const dayLabelFormatter = new Intl.DateTimeFormat('zh-CN', {
+  month: 'numeric',
   day: 'numeric',
   timeZone: 'UTC',
 });
@@ -89,9 +89,9 @@ export function groupTransactionsByDay(transactions, timeZone, now = new Date())
  */
 export function buildDetailsSummaryItems(summary) {
   return [
-    { key: 'income', label: 'Income', value: summary.income, tone: 'income' },
-    { key: 'expense', label: 'Expense', value: summary.expense, tone: 'expense' },
-    { key: 'balance', label: 'Balance', value: summary.balance, tone: 'default' },
+    { key: 'income', label: accountingCopy.entryType.income, value: summary.income, tone: 'income' },
+    { key: 'expense', label: accountingCopy.entryType.expense, value: summary.expense, tone: 'expense' },
+    { key: 'balance', label: '结余', value: summary.balance, tone: 'default' },
   ];
 }
 
@@ -119,14 +119,17 @@ function getDateKey(value, timeZone) {
  */
 function getRelativeDateLabel(value, todayKey, yesterdayKey) {
   if (value === todayKey) {
-    return 'Today';
+    return '今天';
   }
 
   if (value === yesterdayKey) {
-    return 'Yesterday';
+    return '昨天';
   }
 
   const [year, month, day] = value.split('-');
 
-  return dayLabelFormatter.format(new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))));
+  return dayLabelFormatter
+    .format(new Date(Date.UTC(Number(year), Number(month) - 1, Number(day))))
+    .replace('/', '月')
+    .replace(/$/, '日');
 }

@@ -31,7 +31,7 @@ export function AccountSummaryRow({ account, onPress }) {
         </Text>
         <Text style={styles.meta}>
           {account.type}
-          {account.isActive ? '' : '  Inactive'}
+          {account.isActive ? '' : '  未启用'}
         </Text>
       </View>
       <Text style={styles.amount}>{formatAccountingCurrency(account.currentBalance)}</Text>
@@ -73,7 +73,6 @@ function createStyles(colors, spacing, radius, typography) {
     meta: {
       fontSize: typography.caption,
       color: colors.textSecondary,
-      textTransform: 'capitalize',
     },
     amount: {
       fontSize: typography.bodyLarge,
