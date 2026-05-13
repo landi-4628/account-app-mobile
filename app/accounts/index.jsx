@@ -164,6 +164,17 @@ export default function AccountsScreen() {
     }
   }, [actions, availability.canCreateAccounts, name, type]);
 
+  const handleToggleActive = React.useCallback(
+    (accountId, isActive) => {
+      if (!viewModel.canManageExisting) {
+        return;
+      }
+
+      actions.toggleAccountActive?.(accountId, !isActive);
+    },
+    [actions, viewModel.canManageExisting]
+  );
+
   return (
     <>
       <Stack.Screen options={{ title: 'Accounts' }} />
@@ -217,9 +228,10 @@ export default function AccountsScreen() {
                 key={row.id}
                 title={row.item.name}
                 subtitle={getAccountTypeLabel(row.item.type)}
-                meta={row.isActive ? 'Active' : 'Inactive'}
+                meta={row.isActive ? 'Tap to deactivate' : 'Tap to activate'}
                 badge={row.isActive ? null : { label: 'Inactive', tone: 'warning' }}
-                disabled
+                disabled={!viewModel.canManageExisting}
+                onPress={() => handleToggleActive(row.id, row.isActive)}
               />
             ))}
           </View>

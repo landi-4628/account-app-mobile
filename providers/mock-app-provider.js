@@ -62,6 +62,8 @@ import { getSyncableTransactions, shouldAutoSync } from './mock-app-sync-support
  * @property {(transactionId: string, syncStatus: import('../types/accounting').SyncStatus, updatedAt?: string | undefined) => void} updateTransactionSyncStatus
  * @property {(input: { name: string, type: EntryType }) => LedgerCategory} addCategory
  * @property {(input: { name: string, type: import('../types/accounting').AccountType }) => LedgerAccount} addAccount
+ * @property {(categoryId: string, isActive: boolean) => void} toggleCategoryActive
+ * @property {(accountId: string, isActive: boolean) => void} toggleAccountActive
  * @property {(enabled: boolean) => void} setAutoSyncEnabled
  * @property {() => Promise<void>} syncPendingTransactions
  * @property {(input: { email: string, password: string }) => Promise<unknown>} login
@@ -543,6 +545,32 @@ export function MockAppProvider({ children }) {
           }
 
           return account;
+        },
+        toggleCategoryActive: (categoryId, isActive) => {
+          /** @type {MockAppAction} */
+          const action = {
+            type: 'toggleCategoryActive',
+            categoryId,
+            isActive,
+          };
+          const nextState = reduceState(state, action);
+          dispatch(action);
+          if (canSyncRemotely) {
+            void syncRemoteState(nextState);
+          }
+        },
+        toggleAccountActive: (accountId, isActive) => {
+          /** @type {MockAppAction} */
+          const action = {
+            type: 'toggleAccountActive',
+            accountId,
+            isActive,
+          };
+          const nextState = reduceState(state, action);
+          dispatch(action);
+          if (canSyncRemotely) {
+            void syncRemoteState(nextState);
+          }
         },
         setAutoSyncEnabled: (enabled) => setAutoSyncEnabled(enabled),
         syncPendingTransactions,

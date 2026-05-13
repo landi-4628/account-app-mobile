@@ -88,6 +88,16 @@ test('builds defensive capability notices for unavailable actions', () => {
     ),
     null
   );
+
+  assert.equal(
+    buildCapabilityNotice(
+      'accountsManage',
+      getActionAvailability({
+        toggleAccountActive() {},
+      })
+    ),
+    null
+  );
 });
 
 test('builds account rows with active accounts first and stable names', () => {

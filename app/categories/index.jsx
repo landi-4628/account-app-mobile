@@ -162,6 +162,17 @@ export default function CategoriesScreen() {
     }
   }, [actions, availability.canCreateCategories, entryType, name]);
 
+  const handleToggleActive = React.useCallback(
+    (categoryId, isActive) => {
+      if (!viewModel.canManageExisting) {
+        return;
+      }
+
+      actions.toggleCategoryActive?.(categoryId, !isActive);
+    },
+    [actions, viewModel.canManageExisting]
+  );
+
   return (
     <>
       <Stack.Screen options={{ title: 'Categories' }} />
@@ -217,9 +228,10 @@ export default function CategoriesScreen() {
                 key={row.id}
                 title={row.item.name}
                 subtitle={row.item.type === 'expense' ? 'Expense' : 'Income'}
-                meta={row.isActive ? 'Active' : 'Inactive'}
+                meta={row.isActive ? 'Tap to deactivate' : 'Tap to activate'}
                 badge={row.isActive ? null : { label: 'Inactive', tone: 'warning' }}
-                disabled
+                disabled={!viewModel.canManageExisting}
+                onPress={() => handleToggleActive(row.id, row.isActive)}
               />
             ))}
           </View>

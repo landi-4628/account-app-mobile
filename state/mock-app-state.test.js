@@ -276,6 +276,28 @@ test('adds a custom account with zero starting balance and includes it in accoun
   assert.equal(account?.currentBalance, 0);
 });
 
+test('toggles an account active state in place', () => {
+  const initialState = createInitialMockAppState();
+  const state = mockAppReducer(initialState, {
+    type: 'toggleAccountActive',
+    accountId: 'acc-cash',
+    isActive: false,
+  });
+
+  assert.equal(state.accounts.find((item) => item.id === 'acc-cash')?.isActive, false);
+});
+
+test('toggles a category active state in place', () => {
+  const initialState = createInitialMockAppState();
+  const state = mockAppReducer(initialState, {
+    type: 'toggleCategoryActive',
+    categoryId: 'cat-food',
+    isActive: false,
+  });
+
+  assert.equal(state.categories.find((item) => item.id === 'cat-food')?.isActive, false);
+});
+
 test('selects only custom accounts and categories for persistence', () => {
   const state = mockAppReducer(
     mockAppReducer(createInitialMockAppState(), {

@@ -51,9 +51,11 @@ const DEFAULT_ENTRY_TYPE = 'expense';
  * @typedef {{ type: 'updateTransactionSyncStatus', transactionId: string, syncStatus: import('../types/accounting').SyncStatus, updatedAt?: string | undefined }} UpdateTransactionSyncStatusAction
  * @typedef {{ type: 'addCategory', category: LedgerCategory }} AddCategoryAction
  * @typedef {{ type: 'addAccount', account: LedgerAccount }} AddAccountAction
+ * @typedef {{ type: 'toggleCategoryActive', categoryId: string, isActive: boolean }} ToggleCategoryActiveAction
+ * @typedef {{ type: 'toggleAccountActive', accountId: string, isActive: boolean }} ToggleAccountActiveAction
  * @typedef {{ type: 'hydrateCustomDefinitions', definitions: { categories?: LedgerCategory[] | undefined, accounts?: LedgerAccount[] | undefined } }} HydrateCustomDefinitionsAction
  * @typedef {{ type: 'hydrateSnapshot', snapshot: import('./mock-app-snapshot.js').MockAppSnapshot }} HydrateSnapshotAction
- * @typedef {OpenQuickAddAction | CloseQuickAddAction | SetSelectedEntryTypeAction | SetCurrentMonthAction | AddTransactionAction | UpdateTransactionAction | DeleteTransactionAction | UpdateTransactionSyncStatusAction | AddCategoryAction | AddAccountAction | HydrateCustomDefinitionsAction | HydrateSnapshotAction} MockAppAction
+ * @typedef {OpenQuickAddAction | CloseQuickAddAction | SetSelectedEntryTypeAction | SetCurrentMonthAction | AddTransactionAction | UpdateTransactionAction | DeleteTransactionAction | UpdateTransactionSyncStatusAction | AddCategoryAction | AddAccountAction | ToggleCategoryActiveAction | ToggleAccountActiveAction | HydrateCustomDefinitionsAction | HydrateSnapshotAction} MockAppAction
  */
 
 /**
@@ -449,6 +451,24 @@ export function mockAppReducer(state, action) {
       return {
         ...state,
         accounts: [...state.accounts, action.account],
+      };
+    case 'toggleCategoryActive':
+      return {
+        ...state,
+        categories: state.categories.map((category) =>
+          category.id === action.categoryId
+            ? { ...category, isActive: action.isActive }
+            : category
+        ),
+      };
+    case 'toggleAccountActive':
+      return {
+        ...state,
+        accounts: state.accounts.map((account) =>
+          account.id === action.accountId
+            ? { ...account, isActive: action.isActive }
+            : account
+        ),
       };
     case 'hydrateSnapshot':
       return applyMockAppSnapshot(state, action.snapshot);

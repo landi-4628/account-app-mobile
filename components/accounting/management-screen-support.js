@@ -24,14 +24,19 @@ const capabilityMap = {
   passwordChange: 'canChangePassword',
   accountsCreate: 'canCreateAccounts',
   categoriesCreate: 'canCreateCategories',
-  accountsManage: 'canEditAccounts',
-  categoriesManage: 'canEditCategories',
+  accountsManage: 'canManageAccounts',
+  categoriesManage: 'canManageCategories',
 };
 
 export function buildCapabilityNotice(feature, availability) {
   const capabilityKey = capabilityMap[feature];
+  const effectiveAvailability = {
+    ...availability,
+    canManageAccounts: Boolean(availability?.canEditAccounts || availability?.canToggleAccounts),
+    canManageCategories: Boolean(availability?.canEditCategories || availability?.canToggleCategories),
+  };
 
-  if (!capabilityKey || availability?.[capabilityKey]) {
+  if (!capabilityKey || effectiveAvailability[capabilityKey]) {
     return null;
   }
 
