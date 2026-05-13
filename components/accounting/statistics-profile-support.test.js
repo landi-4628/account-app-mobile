@@ -46,8 +46,73 @@ test('builds sync detail copy from updated time and pending or failed counts', (
   );
 });
 
+test('builds auto-sync detail copy for pending local changes', () => {
+  assert.equal(
+    getSyncSummaryDetail(
+      {
+        status: 'pending',
+        pendingCount: 2,
+        failedCount: 0,
+        updatedAt: '2026-05-11T12:40:00+08:00',
+      },
+      'Asia/Shanghai',
+      {
+        isAutoSyncEnabled: true,
+      }
+    ),
+    '最近更新 5月11日 12:40 | 已保存到本地，有网时自动同步，待同步 2 条'
+  );
+});
+
+test('builds local-only detail copy when auto sync is disabled', () => {
+  assert.equal(
+    getSyncSummaryDetail(
+      {
+        status: 'synced',
+        pendingCount: 3,
+        failedCount: 0,
+        updatedAt: '2026-05-11T12:40:00+08:00',
+      },
+      'Asia/Shanghai',
+      {
+        isAutoSyncEnabled: false,
+      }
+    ),
+    '最近更新 5月11日 12:40 | 仅保存在本地，可稍后手动同步，待同步 3 条'
+  );
+});
+
 test('maps sync states to the expected profile action labels', () => {
   assert.equal(getSyncActionLabel('failed'), '重试同步');
   assert.equal(getSyncActionLabel('pending'), '立即同步');
   assert.equal(getSyncActionLabel('synced'), null);
+});
+
+test('builds sync action labels for auto-sync and local-only modes', () => {
+  assert.equal(
+    getSyncActionLabel('pending', {
+      isAutoSyncEnabled: true,
+    }),
+    '立即同步'
+  );
+  assert.equal(
+    getSyncActionLabel('failed', {
+      isAutoSyncEnabled: true,
+    }),
+    '重试同步'
+  );
+  assert.equal(
+    getSyncActionLabel('synced', {
+      isAutoSyncEnabled: false,
+      hasPendingChanges: true,
+    }),
+    '手动同步'
+  );
+  assert.equal(
+    getSyncActionLabel('synced', {
+      isAutoSyncEnabled: false,
+      hasPendingChanges: false,
+    }),
+    null
+  );
 });
