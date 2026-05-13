@@ -17,6 +17,22 @@ import {
 import { useAccountingTheme } from '@/components/accounting/use-accounting-theme';
 import { useMockApp } from '@/providers/mock-app-provider';
 
+const copy = {
+  title: '\u4fee\u6539\u5bc6\u7801',
+  subtitle: '\u66f4\u65b0\u5f53\u524d\u8d26\u53f7\u7684\u767b\u5f55\u5bc6\u7801',
+  unavailableTitle: '\u5f53\u524d\u6682\u4e0d\u652f\u6301\u4fee\u6539\u5bc6\u7801',
+  unavailableDescription: '\u8868\u5355\u53ef\u4ee5\u5148\u586b\u5199\uff0c\u63a5\u5165\u4fee\u6539\u80fd\u529b\u540e\u5373\u53ef\u63d0\u4ea4\u3002',
+  submitError: '\u4fee\u6539\u5bc6\u7801\u5931\u8d25',
+  currentPassword: '\u5f53\u524d\u5bc6\u7801',
+  nextPassword: '\u65b0\u5bc6\u7801',
+  confirmPassword: '\u786e\u8ba4\u65b0\u5bc6\u7801',
+  currentPasswordError: '\u8bf7\u8f93\u5165\u5f53\u524d\u5bc6\u7801',
+  nextPasswordError: '\u65b0\u5bc6\u7801\u81f3\u5c11 6 \u4f4d',
+  confirmPasswordError: '\u4e24\u6b21\u8f93\u5165\u7684\u5bc6\u7801\u4e0d\u4e00\u81f4',
+  cancel: '\u53d6\u6d88',
+  submit: '\u66f4\u65b0\u5bc6\u7801',
+};
+
 function PasswordButton({ label, onPress, disabled, secondary = false }) {
   const theme = useAccountingTheme();
   const styles = createButtonStyles(theme);
@@ -114,52 +130,49 @@ export default function ChangePasswordScreen() {
       await actions.changePassword?.(draft);
       router.back();
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Unable to change password');
+      setSubmitError(error instanceof Error ? error.message : copy.submitError);
     }
   }, [actions, availability.canChangePassword, draft, router]);
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Change password' }} />
+      <Stack.Screen options={{ title: copy.title }} />
       <AccountingScreen>
-        <SectionHeader
-          title="Change password"
-          subtitle="Prepared for a provider action that validates the current password server-side"
-        />
+        <SectionHeader title={copy.title} subtitle={copy.subtitle} />
         {capabilityNotice ? (
           <InfoBanner
             tone="warning"
-            title="Password changes are not wired in the current provider"
-            description="The form validates locally, but submit remains disabled until a changePassword action is added."
+            title={copy.unavailableTitle}
+            description={copy.unavailableDescription}
           />
         ) : null}
         {submitError ? <InfoBanner tone="warning" title={submitError} /> : null}
         <SurfaceCard style={styles.card}>
           <FormField
-            label="Current password"
+            label={copy.currentPassword}
             value={draft.currentPassword}
             onChangeText={(value) => handleChange('currentPassword', value)}
-            error={errors.currentPassword ? 'Enter your current password.' : undefined}
+            error={errors.currentPassword ? copy.currentPasswordError : undefined}
             secureTextEntry
           />
           <FormField
-            label="New password"
+            label={copy.nextPassword}
             value={draft.nextPassword}
             onChangeText={(value) => handleChange('nextPassword', value)}
-            error={errors.nextPassword ? 'Use at least 6 characters.' : undefined}
+            error={errors.nextPassword ? copy.nextPasswordError : undefined}
             secureTextEntry
           />
           <FormField
-            label="Confirm new password"
+            label={copy.confirmPassword}
             value={draft.confirmPassword}
             onChangeText={(value) => handleChange('confirmPassword', value)}
-            error={errors.confirmPassword ? 'Passwords must match.' : undefined}
+            error={errors.confirmPassword ? copy.confirmPasswordError : undefined}
             secureTextEntry
           />
           <View style={styles.actions}>
-            <PasswordButton label="Cancel" secondary onPress={() => router.back()} />
+            <PasswordButton label={copy.cancel} secondary onPress={() => router.back()} />
             <PasswordButton
-              label="Update password"
+              label={copy.submit}
               onPress={() => void handleSubmit()}
               disabled={!availability.canChangePassword}
             />

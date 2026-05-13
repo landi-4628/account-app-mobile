@@ -20,6 +20,24 @@ import { useAccountingTheme } from '@/components/accounting/use-accounting-theme
 import { useMockApp } from '@/providers/mock-app-provider';
 
 const ACCOUNT_TYPES = ['cash', 'bank', 'alipay', 'wechat'];
+const copy = {
+  title: '\u8d26\u6237\u7ba1\u7406',
+  subtitle: '\u65b0\u5efa\u8d26\u6237\uff0c\u5e76\u5728\u540e\u7eed\u63a5\u5165\u66f4\u591a\u7f16\u8f91\u80fd\u529b',
+  createUnavailableTitle: '\u5f53\u524d provider \u6682\u4e0d\u652f\u6301\u65b0\u5efa\u8d26\u6237',
+  createUnavailableDescription: '\u8868\u5355\u4f1a\u7ee7\u7eed\u663e\u793a\uff0c\u4f46\u6dfb\u52a0\u64cd\u4f5c\u4f1a\u4fdd\u6301\u7981\u7528\uff0c\u76f4\u5230\u66b4\u9732 addAccount \u80fd\u529b\u3002',
+  manageUnavailableTitle: '\u73b0\u6709\u8d26\u6237\u6682\u65f6\u53ea\u8bfb',
+  manageUnavailableDescription: '\u5f53\u524d\u6ca1\u6709 updateAccount\u3001saveAccount \u6216 toggleAccountActive \u80fd\u529b\uff0c\u56e0\u6b64\u5217\u8868\u64cd\u4f5c\u4f1a\u4fdd\u6301\u7981\u7528\u3002',
+  submitError: '\u6dfb\u52a0\u8d26\u6237\u5931\u8d25',
+  addButton: '\u6dfb\u52a0\u8d26\u6237',
+  newAccount: '\u65b0\u5efa\u8d26\u6237',
+  accountName: '\u8d26\u6237\u540d\u79f0',
+  accountNamePlaceholder: 'Savings, Cash, Travel card',
+  accountType: '\u8d26\u6237\u7c7b\u578b',
+  existingAccounts: '\u73b0\u6709\u8d26\u6237',
+  tapToDeactivate: '\u70b9\u51fb\u505c\u7528',
+  tapToActivate: '\u70b9\u51fb\u542f\u7528',
+  inactive: '\u5df2\u505c\u7528',
+};
 
 function TypePicker({ value, onChange, disabled }) {
   const theme = useAccountingTheme();
@@ -103,7 +121,7 @@ function AddAccountButton({ disabled, onPress }) {
         disabled ? styles.buttonDisabled : null,
         pressed && !disabled ? styles.buttonPressed : null,
       ]}>
-      <Text style={styles.label}>Add account</Text>
+      <Text style={styles.label}>{copy.addButton}</Text>
     </Pressable>
   );
 }
@@ -160,7 +178,7 @@ export default function AccountsScreen() {
       setName('');
       setSubmitError('');
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Unable to add account');
+      setSubmitError(error instanceof Error ? error.message : copy.submitError);
     }
   }, [actions, availability.canCreateAccounts, name, type]);
 
@@ -177,38 +195,35 @@ export default function AccountsScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Accounts' }} />
+      <Stack.Screen options={{ title: copy.title }} />
       <AccountingScreen>
-        <SectionHeader
-          title="Accounts"
-          subtitle="Create accounts now and keep read-only management visible until more provider actions arrive"
-        />
+        <SectionHeader title={copy.title} subtitle={copy.subtitle} />
         {createNotice ? (
           <InfoBanner
             tone="warning"
-            title="Account creation is not available in the current provider"
-            description="The form stays visible, but the add action remains disabled until addAccount is exposed."
+            title={copy.createUnavailableTitle}
+            description={copy.createUnavailableDescription}
           />
         ) : null}
         {manageNotice ? (
           <InfoBanner
             tone="warning"
-            title="Existing accounts are read-only for now"
-            description="No updateAccount/saveAccount or toggleAccountActive action is available, so row actions stay disabled."
+            title={copy.manageUnavailableTitle}
+            description={copy.manageUnavailableDescription}
           />
         ) : null}
         {submitError ? <InfoBanner tone="warning" title={submitError} /> : null}
         <SurfaceCard style={styles.card}>
-          <Text style={styles.sectionTitle}>New account</Text>
+          <Text style={styles.sectionTitle}>{copy.newAccount}</Text>
           <FormField
-            label="Account name"
+            label={copy.accountName}
             value={name}
             onChangeText={setName}
-            placeholder="Savings, Cash, Travel card"
+            placeholder={copy.accountNamePlaceholder}
             autoCapitalize="words"
           />
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Account type</Text>
+            <Text style={styles.fieldLabel}>{copy.accountType}</Text>
             <TypePicker
               value={type}
               onChange={setType}
@@ -221,15 +236,15 @@ export default function AccountsScreen() {
           />
         </SurfaceCard>
         <View style={styles.listSection}>
-          <Text style={styles.sectionTitle}>Existing accounts</Text>
+          <Text style={styles.sectionTitle}>{copy.existingAccounts}</Text>
           <View style={styles.list}>
             {viewModel.rows.map((row) => (
               <ManagementRow
                 key={row.id}
                 title={row.item.name}
                 subtitle={getAccountTypeLabel(row.item.type)}
-                meta={row.isActive ? 'Tap to deactivate' : 'Tap to activate'}
-                badge={row.isActive ? null : { label: 'Inactive', tone: 'warning' }}
+                meta={row.isActive ? copy.tapToDeactivate : copy.tapToActivate}
+                badge={row.isActive ? null : { label: copy.inactive, tone: 'warning' }}
                 disabled={!viewModel.canManageExisting}
                 onPress={() => handleToggleActive(row.id, row.isActive)}
               />

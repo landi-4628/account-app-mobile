@@ -16,6 +16,16 @@ export const unstable_settings = {
   anchor: '(tabs)',
 };
 
+const stackTitles = {
+  login: '\u767b\u5f55',
+  register: '\u6ce8\u518c',
+  profile: '\u4e2a\u4eba\u8d44\u6599',
+  editProfile: '\u7f16\u8f91\u4e2a\u4eba\u4fe1\u606f',
+  changePassword: '\u4fee\u6539\u5bc6\u7801',
+  accounts: '\u8d26\u6237\u7ba1\u7406',
+  categories: '\u5206\u7c7b\u7ba1\u7406',
+};
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
@@ -26,13 +36,13 @@ export default function RootLayout() {
           <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
             <Stack>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="auth/login" options={{ title: 'Login' }} />
-              <Stack.Screen name="auth/register" options={{ title: 'Register' }} />
-              <Stack.Screen name="profile" options={{ title: 'Profile' }} />
-              <Stack.Screen name="profile/edit" options={{ title: 'Edit profile' }} />
-              <Stack.Screen name="profile/change-password" options={{ title: 'Change password' }} />
-              <Stack.Screen name="accounts" options={{ title: 'Accounts' }} />
-              <Stack.Screen name="categories" options={{ title: 'Categories' }} />
+              <Stack.Screen name="auth/login" options={{ title: stackTitles.login }} />
+              <Stack.Screen name="auth/register" options={{ title: stackTitles.register }} />
+              <Stack.Screen name="profile" options={{ title: stackTitles.profile }} />
+              <Stack.Screen name="profile/edit" options={{ title: stackTitles.editProfile }} />
+              <Stack.Screen name="profile/change-password" options={{ title: stackTitles.changePassword }} />
+              <Stack.Screen name="accounts" options={{ title: stackTitles.accounts }} />
+              <Stack.Screen name="categories" options={{ title: stackTitles.categories }} />
               <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
             </Stack>
             <StatusBar style="auto" />

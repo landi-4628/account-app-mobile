@@ -18,6 +18,28 @@ import {
 import { useAccountingTheme } from '@/components/accounting/use-accounting-theme';
 import { useMockApp } from '@/providers/mock-app-provider';
 
+const copy = {
+  title: '\u7f16\u8f91\u4e2a\u4eba\u4fe1\u606f',
+  subtitle: '\u66f4\u65b0\u59d3\u540d\u3001\u90ae\u7bb1\u3001\u8d26\u672c\u548c\u9ed8\u8ba4\u8d26\u6237',
+  unavailableTitle: '\u5f53\u524d\u6682\u4e0d\u652f\u6301\u4fee\u6539\u4e2a\u4eba\u4fe1\u606f',
+  unavailableDescription: '\u4f60\u53ef\u4ee5\u5148\u67e5\u770b\u8fd9\u4e9b\u5b57\u6bb5\uff0c\u63a5\u5165\u66f4\u65b0\u80fd\u529b\u540e\u5373\u53ef\u4fdd\u5b58\u3002',
+  saveFailed: '\u4fdd\u5b58\u4e2a\u4eba\u4fe1\u606f\u5931\u8d25',
+  name: '\u59d3\u540d',
+  email: '\u90ae\u7bb1',
+  ledgerName: '\u8d26\u672c\u540d\u79f0',
+  timezone: '\u65f6\u533a',
+  defaultAccountId: '\u9ed8\u8ba4\u8d26\u6237 ID',
+  currentDefaultAccount: '\u5f53\u524d\u9ed8\u8ba4\u8d26\u6237',
+  unknown: '\u672a\u627e\u5230',
+  cancel: '\u53d6\u6d88',
+  save: '\u4fdd\u5b58\u4fee\u6539',
+  nameError: '\u8bf7\u8f93\u5165\u59d3\u540d',
+  emailError: '\u8bf7\u8f93\u5165\u6709\u6548\u7684\u90ae\u7bb1\u5730\u5740',
+  ledgerNameError: '\u8bf7\u8f93\u5165\u8d26\u672c\u540d\u79f0',
+  timezoneError: '\u8bf7\u8f93\u5165\u65f6\u533a',
+  defaultAccountIdError: '\u8bf7\u8f93\u5165\u9ed8\u8ba4\u8d26\u6237 ID',
+};
+
 function ActionButton({ label, onPress, disabled, tone = 'primary' }) {
   const theme = useAccountingTheme();
   const styles = createButtonStyles(theme);
@@ -92,7 +114,7 @@ export default function EditProfileScreen() {
   const capabilityNotice = buildCapabilityNotice('profileEdit', availability);
 
   const defaultAccountName =
-    accountSummaries.find((account) => account.id === draft.defaultAccountId)?.name ?? 'Unknown';
+    accountSummaries.find((account) => account.id === draft.defaultAccountId)?.name ?? copy.unknown;
 
   const handleChange = React.useCallback((field, value) => {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -119,70 +141,67 @@ export default function EditProfileScreen() {
       await actions.updateProfile?.(draft);
       router.back();
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Unable to save profile');
+      setSubmitError(error instanceof Error ? error.message : copy.saveFailed);
     }
   }, [actions, availability.canUpdateProfile, draft, router]);
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Edit profile' }} />
+      <Stack.Screen options={{ title: copy.title }} />
       <AccountingScreen>
-        <SectionHeader
-          title="Edit profile"
-          subtitle="Keep the form ready for the provider method that updates user details"
-        />
+        <SectionHeader title={copy.title} subtitle={copy.subtitle} />
         {capabilityNotice ? (
           <InfoBanner
             tone="warning"
-            title="Profile updates are not available in the current provider"
-            description="You can review the fields here, but save stays disabled until an updateProfile or saveProfile action is exposed."
+            title={copy.unavailableTitle}
+            description={copy.unavailableDescription}
           />
         ) : null}
         {submitError ? <InfoBanner tone="warning" title={submitError} /> : null}
         <SurfaceCard style={styles.card}>
           <FormField
-            label="Name"
+            label={copy.name}
             value={draft.name}
             onChangeText={(value) => handleChange('name', value)}
-            error={errors.name ? 'Enter a name.' : undefined}
+            error={errors.name ? copy.nameError : undefined}
             autoCapitalize="words"
           />
           <FormField
-            label="Email"
+            label={copy.email}
             value={draft.email}
             onChangeText={(value) => handleChange('email', value)}
-            error={errors.email ? 'Enter a valid email.' : undefined}
+            error={errors.email ? copy.emailError : undefined}
             keyboardType="email-address"
           />
           <FormField
-            label="Ledger name"
+            label={copy.ledgerName}
             value={draft.ledgerName}
             onChangeText={(value) => handleChange('ledgerName', value)}
-            error={errors.ledgerName ? 'Enter a ledger name.' : undefined}
+            error={errors.ledgerName ? copy.ledgerNameError : undefined}
             autoCapitalize="words"
           />
           <FormField
-            label="Timezone"
+            label={copy.timezone}
             value={draft.timezone}
             onChangeText={(value) => handleChange('timezone', value)}
-            error={errors.timezone ? 'Enter a timezone.' : undefined}
+            error={errors.timezone ? copy.timezoneError : undefined}
             placeholder="Asia/Shanghai"
           />
           <FormField
-            label="Default account ID"
+            label={copy.defaultAccountId}
             value={draft.defaultAccountId}
             onChangeText={(value) => handleChange('defaultAccountId', value)}
-            error={errors.defaultAccountId ? 'Enter a default account ID.' : undefined}
+            error={errors.defaultAccountId ? copy.defaultAccountIdError : undefined}
             placeholder="acc-wechat"
           />
           <View style={styles.inlineNote}>
-            <Text style={styles.inlineNoteLabel}>Current account</Text>
+            <Text style={styles.inlineNoteLabel}>{copy.currentDefaultAccount}</Text>
             <Text style={styles.inlineNoteValue}>{defaultAccountName}</Text>
           </View>
           <View style={styles.actions}>
-            <ActionButton label="Cancel" tone="secondary" onPress={() => router.back()} />
+            <ActionButton label={copy.cancel} tone="secondary" onPress={() => router.back()} />
             <ActionButton
-              label="Save changes"
+              label={copy.save}
               onPress={() => void handleSubmit()}
               disabled={!availability.canUpdateProfile}
             />

@@ -10,12 +10,21 @@ import {
   SectionHeader,
   SyncSummaryRow,
 } from '@/components/accounting';
+import { buildProfileOverviewLinks } from '@/components/accounting/profile-screen-support';
 import {
   getAccountTypeLabel,
   getSyncSummaryDetail,
 } from '@/components/accounting/statistics-profile-support';
 import { useAccountingTheme } from '@/components/accounting/use-accounting-theme';
 import { useMockApp } from '@/providers/mock-app-provider';
+
+const copy = {
+  title: '\u6211\u7684',
+  subtitle: '\u4e2a\u4eba\u8d44\u6599\u3001\u540c\u6b65\u72b6\u6001\u548c\u5e38\u7528\u5165\u53e3',
+  profileCardSubtitle: '\u67e5\u770b\u8d44\u6599\u3001\u8d26\u672c\u548c\u540c\u6b65\u8bbe\u7f6e',
+  accounts: '\u6211\u7684\u8d26\u6237',
+  tools: '\u5e38\u7528\u529f\u80fd',
+};
 
 function ProfileEntryCard({ title, subtitle, rows, onPress }) {
   const { colors, spacing, radius, typography, shadow } = useAccountingTheme();
@@ -56,28 +65,14 @@ export default function ProfileScreen() {
     { label: accountingCopy.profile.ledger, value: user.ledgerName },
     { label: accountingCopy.profile.email, value: user.email },
   ];
-  const managementRows = [
-    {
-      title: 'Profile hub',
-      subtitle: 'Open edit, password, account, and category screens',
-      onPress: () => router.push('/profile'),
-    },
-    {
-      title: 'Authentication',
-      subtitle: 'Preview login and register routes',
-      onPress: () => router.push('/auth/login'),
-    },
-  ];
+  const managementRows = buildProfileOverviewLinks();
 
   return (
     <AccountingScreen>
-      <SectionHeader
-        title={accountingCopy.profile.title}
-        subtitle={accountingCopy.profile.subtitle}
-      />
+      <SectionHeader title={copy.title} subtitle={copy.subtitle} />
       <ProfileEntryCard
         title={user.name}
-        subtitle="查看基础资料与同步设置"
+        subtitle={copy.profileCardSubtitle}
         rows={profileEntryRows}
         onPress={() => router.push('/profile')}
       />
@@ -89,7 +84,7 @@ export default function ProfileScreen() {
         detail={getSyncSummaryDetail(syncSummary, user.timezone, { isAutoSyncEnabled: autoSyncEnabled })}
       />
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{accountingCopy.profile.accounts}</Text>
+        <Text style={styles.sectionTitle}>{copy.accounts}</Text>
         <View style={styles.sectionBody}>
           {accountSummaries.map((account) => (
             <AccountSummaryRow
@@ -103,7 +98,7 @@ export default function ProfileScreen() {
         </View>
       </View>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Manage</Text>
+        <Text style={styles.sectionTitle}>{copy.tools}</Text>
         <View style={styles.sectionBody}>
           {managementRows.map((row) => (
             <ProfileEntryCard
@@ -111,7 +106,7 @@ export default function ProfileScreen() {
               title={row.title}
               subtitle={row.subtitle}
               rows={[]}
-              onPress={row.onPress}
+              onPress={() => router.push(row.href)}
             />
           ))}
         </View>

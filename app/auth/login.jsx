@@ -18,6 +18,22 @@ import {
 import { useAccountingTheme } from '@/components/accounting/use-accounting-theme';
 import { useMockApp } from '@/providers/mock-app-provider';
 
+const copy = {
+  title: '\u767b\u5f55',
+  subtitle: '\u8fde\u63a5\u5df2\u6709\u8d26\u53f7\uff0c\u7ee7\u7eed\u540c\u6b65\u548c\u7ba1\u7406\u6570\u636e',
+  unavailableTitle: '\u5f53\u524d\u6682\u4e0d\u652f\u6301\u767b\u5f55',
+  unavailableDescription: '\u9875\u9762\u5df2\u7ecf\u51c6\u5907\u597d\uff0c\u63a5\u5165\u767b\u5f55\u80fd\u529b\u540e\u5373\u53ef\u63d0\u4ea4\u3002',
+  submitError: '\u767b\u5f55\u5931\u8d25',
+  email: '\u90ae\u7bb1',
+  password: '\u5bc6\u7801',
+  emailError: '\u8bf7\u8f93\u5165\u6709\u6548\u7684\u90ae\u7bb1\u5730\u5740',
+  passwordError: '\u8bf7\u8f93\u5165\u5bc6\u7801',
+  back: '\u8fd4\u56de',
+  submit: '\u767b\u5f55',
+  registerPrompt: '\u8fd8\u6ca1\u6709\u8d26\u53f7\uff1f',
+  registerLink: '\u53bb\u6ce8\u518c',
+};
+
 function AuthButton({ label, onPress, disabled, secondary = false }) {
   const theme = useAccountingTheme();
   const styles = createButtonStyles(theme);
@@ -113,53 +129,50 @@ export default function LoginScreen() {
       });
       router.replace('/(tabs)/profile');
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Unable to sign in');
+      setSubmitError(error instanceof Error ? error.message : copy.submitError);
     }
   }, [actions, availability.canLogin, draft, router]);
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Login' }} />
+      <Stack.Screen options={{ title: copy.title }} />
       <AccountingScreen>
-        <SectionHeader
-          title="Login"
-          subtitle="A ready screen for provider-backed authentication"
-        />
+        <SectionHeader title={copy.title} subtitle={copy.subtitle} />
         {capabilityNotice ? (
           <InfoBanner
             tone="warning"
-            title="Login is not available in the current provider"
-            description="The route is in place, but submit stays disabled until a login action is exposed."
+            title={copy.unavailableTitle}
+            description={copy.unavailableDescription}
           />
         ) : null}
         {submitError ? <InfoBanner tone="warning" title={submitError} /> : null}
         <SurfaceCard style={styles.card}>
           <FormField
-            label="Email"
+            label={copy.email}
             value={draft.email}
             onChangeText={(value) => handleChange('email', value)}
-            error={errors.email ? 'Enter a valid email.' : undefined}
+            error={errors.email ? copy.emailError : undefined}
             keyboardType="email-address"
           />
           <FormField
-            label="Password"
+            label={copy.password}
             value={draft.password}
             onChangeText={(value) => handleChange('password', value)}
-            error={errors.password ? 'Enter your password.' : undefined}
+            error={errors.password ? copy.passwordError : undefined}
             secureTextEntry
           />
           <View style={styles.actions}>
-            <AuthButton label="Back" secondary onPress={() => router.back()} />
+            <AuthButton label={copy.back} secondary onPress={() => router.back()} />
             <AuthButton
-              label="Sign in"
+              label={copy.submit}
               onPress={() => void handleSubmit()}
               disabled={!availability.canLogin}
             />
           </View>
           <Text style={styles.footerText}>
-            Need an account?{' '}
+            {copy.registerPrompt}{' '}
             <Link href="/auth/register" style={styles.footerLink}>
-              Register
+              {copy.registerLink}
             </Link>
           </Text>
         </SurfaceCard>

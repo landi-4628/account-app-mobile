@@ -19,6 +19,28 @@ import { useAccountingTheme } from '@/components/accounting/use-accounting-theme
 import { useMockApp } from '@/providers/mock-app-provider';
 
 const ENTRY_TYPES = ['expense', 'income'];
+const copy = {
+  title: '\u5206\u7c7b\u7ba1\u7406',
+  subtitle: '\u65b0\u5efa\u5206\u7c7b\uff0c\u540e\u7eed\u518d\u63a5\u5165\u7f16\u8f91\u548c\u5f00\u5173\u80fd\u529b',
+  createUnavailableTitle: '\u5f53\u524d provider \u6682\u4e0d\u652f\u6301\u65b0\u5efa\u5206\u7c7b',
+  createUnavailableDescription: '\u8868\u5355\u4f1a\u7ee7\u7eed\u663e\u793a\uff0c\u4f46\u6dfb\u52a0\u64cd\u4f5c\u4f1a\u4fdd\u6301\u7981\u7528\uff0c\u76f4\u5230\u66b4\u9732 addCategory \u80fd\u529b\u3002',
+  manageUnavailableTitle: '\u73b0\u6709\u5206\u7c7b\u6682\u65f6\u53ea\u8bfb',
+  manageUnavailableDescription: '\u5f53\u524d\u6ca1\u6709 updateCategory\u3001saveCategory \u6216 toggleCategoryActive \u80fd\u529b\uff0c\u56e0\u6b64\u5217\u8868\u64cd\u4f5c\u4f1a\u4fdd\u6301\u7981\u7528\u3002',
+  submitError: '\u6dfb\u52a0\u5206\u7c7b\u5931\u8d25',
+  addButton: '\u6dfb\u52a0\u5206\u7c7b',
+  newCategory: '\u65b0\u5efa\u5206\u7c7b',
+  type: '\u7c7b\u578b',
+  expense: '\u652f\u51fa',
+  income: '\u6536\u5165',
+  categoryName: '\u5206\u7c7b\u540d\u79f0',
+  expensePlaceholder: '\u4ea4\u901a\u3001\u9910\u996e',
+  incomePlaceholder: '\u5de5\u8d44\u3001\u5956\u91d1',
+  expenseCategories: '\u652f\u51fa\u5206\u7c7b',
+  incomeCategories: '\u6536\u5165\u5206\u7c7b',
+  tapToDeactivate: '\u70b9\u51fb\u505c\u7528',
+  tapToActivate: '\u70b9\u51fb\u542f\u7528',
+  inactive: '\u5df2\u505c\u7528',
+};
 
 function EntryTypePicker({ value, onChange, disabled }) {
   const theme = useAccountingTheme();
@@ -39,7 +61,7 @@ function EntryTypePicker({ value, onChange, disabled }) {
             pressed && !disabled ? styles.optionPressed : null,
           ]}>
           <Text style={value === type ? styles.optionLabelSelected : styles.optionLabel}>
-            {type === 'expense' ? 'Expense' : 'Income'}
+            {type === 'expense' ? copy.expense : copy.income}
           </Text>
         </Pressable>
       ))}
@@ -101,7 +123,7 @@ function AddCategoryButton({ disabled, onPress }) {
         disabled ? styles.buttonDisabled : null,
         pressed && !disabled ? styles.buttonPressed : null,
       ]}>
-      <Text style={styles.label}>Add category</Text>
+      <Text style={styles.label}>{copy.addButton}</Text>
     </Pressable>
   );
 }
@@ -158,7 +180,7 @@ export default function CategoriesScreen() {
       setName('');
       setSubmitError('');
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Unable to add category');
+      setSubmitError(error instanceof Error ? error.message : copy.submitError);
     }
   }, [actions, availability.canCreateCategories, entryType, name]);
 
@@ -175,31 +197,28 @@ export default function CategoriesScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Categories' }} />
+      <Stack.Screen options={{ title: copy.title }} />
       <AccountingScreen>
-        <SectionHeader
-          title="Categories"
-          subtitle="Create categories now and leave edit/toggle behavior disabled until the provider supports it"
-        />
+        <SectionHeader title={copy.title} subtitle={copy.subtitle} />
         {createNotice ? (
           <InfoBanner
             tone="warning"
-            title="Category creation is not available in the current provider"
-            description="The form stays visible, but the add action remains disabled until addCategory is exposed."
+            title={copy.createUnavailableTitle}
+            description={copy.createUnavailableDescription}
           />
         ) : null}
         {manageNotice ? (
           <InfoBanner
             tone="warning"
-            title="Existing categories are read-only for now"
-            description="No updateCategory/saveCategory or toggleCategoryActive action is available, so row actions stay disabled."
+            title={copy.manageUnavailableTitle}
+            description={copy.manageUnavailableDescription}
           />
         ) : null}
         {submitError ? <InfoBanner tone="warning" title={submitError} /> : null}
         <SurfaceCard style={styles.card}>
-          <Text style={styles.sectionTitle}>New category</Text>
+          <Text style={styles.sectionTitle}>{copy.newCategory}</Text>
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Type</Text>
+            <Text style={styles.fieldLabel}>{copy.type}</Text>
             <EntryTypePicker
               value={entryType}
               onChange={setEntryType}
@@ -207,10 +226,10 @@ export default function CategoriesScreen() {
             />
           </View>
           <FormField
-            label="Category name"
+            label={copy.categoryName}
             value={name}
             onChangeText={setName}
-            placeholder={entryType === 'expense' ? 'Transport, Dining' : 'Salary, Bonus'}
+            placeholder={entryType === 'expense' ? copy.expensePlaceholder : copy.incomePlaceholder}
             autoCapitalize="words"
           />
           <AddCategoryButton
@@ -220,16 +239,16 @@ export default function CategoriesScreen() {
         </SurfaceCard>
         <View style={styles.listSection}>
           <Text style={styles.sectionTitle}>
-            {entryType === 'expense' ? 'Expense categories' : 'Income categories'}
+            {entryType === 'expense' ? copy.expenseCategories : copy.incomeCategories}
           </Text>
           <View style={styles.list}>
             {viewModel.rows.map((row) => (
               <ManagementRow
                 key={row.id}
                 title={row.item.name}
-                subtitle={row.item.type === 'expense' ? 'Expense' : 'Income'}
-                meta={row.isActive ? 'Tap to deactivate' : 'Tap to activate'}
-                badge={row.isActive ? null : { label: 'Inactive', tone: 'warning' }}
+                subtitle={row.item.type === 'expense' ? copy.expense : copy.income}
+                meta={row.isActive ? copy.tapToDeactivate : copy.tapToActivate}
+                badge={row.isActive ? null : { label: copy.inactive, tone: 'warning' }}
                 disabled={!viewModel.canManageExisting}
                 onPress={() => handleToggleActive(row.id, row.isActive)}
               />

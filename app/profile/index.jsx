@@ -13,8 +13,23 @@ import {
   buildCapabilityNotice,
   getActionAvailability,
 } from '@/components/accounting/management-screen-support';
+import {
+  buildProfileCapabilityNotice,
+  buildProfileHubSections,
+  getProfileSyncModeCopy,
+} from '@/components/accounting/profile-screen-support';
 import { useAccountingTheme } from '@/components/accounting/use-accounting-theme';
 import { useMockApp } from '@/providers/mock-app-provider';
+
+const copy = {
+  title: '\u4e2a\u4eba\u8d44\u6599',
+  subtitle: '\u8d44\u6599\u3001\u8d26\u6237\u5b89\u5168\u548c\u8d26\u672c\u8bbe\u7f6e',
+  email: '\u90ae\u7bb1',
+  ledger: '\u8d26\u672c',
+  timezone: '\u65f6\u533a',
+  syncMode: '\u540c\u6b65\u65b9\u5f0f',
+  pendingSync: '\u5f85\u540c\u6b65',
+};
 
 function QuickLinkSection({ title, rows }) {
   const { spacing } = useAccountingTheme();
@@ -46,106 +61,64 @@ export default function ProfileHubScreen() {
   const styles = createStyles(theme);
   const availability = useMemo(() => getActionAvailability(actions), [actions]);
   const activeAccountCount = accountSummaries.filter((account) => account.isActive).length;
-
-  const settingsRows = [
-    {
-      title: 'Edit profile',
-      subtitle: 'Name, email, ledger, timezone, and default account',
-      meta: availability.canUpdateProfile ? 'Available' : 'Unavailable',
-      badge: availability.canUpdateProfile ? null : { label: 'Later', tone: 'warning' },
-      disabled: !availability.canUpdateProfile,
-      onPress: () => router.push('/profile/edit'),
-    },
-    {
-      title: 'Change password',
-      subtitle: 'Update your sign-in password',
-      meta: availability.canChangePassword ? 'Available' : 'Unavailable',
-      badge: availability.canChangePassword ? null : { label: 'Later', tone: 'warning' },
-      disabled: !availability.canChangePassword,
-      onPress: () => router.push('/profile/change-password'),
-    },
-    {
-      title: 'Accounts',
-      subtitle: `${activeAccountCount} active accounts`,
-      meta: 'Manage',
-      onPress: () => router.push('/accounts'),
-    },
-    {
-      title: 'Categories',
-      subtitle: 'Review income and expense categories',
-      meta: 'Manage',
-      onPress: () => router.push('/categories'),
-    },
-  ];
-
-  const authRows = [
-    {
-      title: 'Login',
-      subtitle: 'Connect the sign-in flow when the provider exposes it',
-      meta: availability.canLogin ? 'Ready' : 'Unavailable',
-      badge: availability.canLogin ? null : { label: 'Later', tone: 'warning' },
-      disabled: !availability.canLogin,
-      onPress: () => router.push('/auth/login'),
-    },
-    {
-      title: 'Register',
-      subtitle: 'Create a new account when registration is wired',
-      meta: availability.canRegister ? 'Ready' : 'Unavailable',
-      badge: availability.canRegister ? null : { label: 'Later', tone: 'warning' },
-      disabled: !availability.canRegister,
-      onPress: () => router.push('/auth/register'),
-    },
-  ];
+  const sections = buildProfileHubSections({
+    availability,
+    activeAccountCount,
+  });
 
   const capabilityNotice =
     buildCapabilityNotice('profileEdit', availability)
     ?? buildCapabilityNotice('passwordChange', availability)
     ?? buildCapabilityNotice('login', availability);
+  const capabilityNoticeCopy = capabilityNotice ? buildProfileCapabilityNotice() : null;
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Profile' }} />
+      <Stack.Screen options={{ title: copy.title }} />
       <AccountingScreen>
-        <SectionHeader
-          title="Profile"
-          subtitle="Workspace details, sign-in routes, and management screens"
-        />
+        <SectionHeader title={copy.title} subtitle={copy.subtitle} />
         <SurfaceCard style={styles.card}>
           <Text style={styles.name}>{user.name}</Text>
           <View style={styles.summaryList}>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Email</Text>
+              <Text style={styles.summaryLabel}>{copy.email}</Text>
               <Text style={styles.summaryValue}>{user.email}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Ledger</Text>
+              <Text style={styles.summaryLabel}>{copy.ledger}</Text>
               <Text style={styles.summaryValue}>{user.ledgerName}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Timezone</Text>
+              <Text style={styles.summaryLabel}>{copy.timezone}</Text>
               <Text style={styles.summaryValue}>{user.timezone}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Sync mode</Text>
-              <Text style={styles.summaryValue}>
-                {autoSyncEnabled ? 'Auto sync enabled' : 'Local-first, manual sync'}
-              </Text>
+              <Text style={styles.summaryLabel}>{copy.syncMode}</Text>
+              <Text style={styles.summaryValue}>{getProfileSyncModeCopy(autoSyncEnabled)}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Pending sync</Text>
+              <Text style={styles.summaryLabel}>{copy.pendingSync}</Text>
               <Text style={styles.summaryValue}>{String(syncSummary.pendingCount)}</Text>
             </View>
           </View>
         </SurfaceCard>
-        {capabilityNotice ? (
+        {capabilityNoticeCopy ? (
           <InfoBanner
-            tone={capabilityNotice.tone}
-            title="Some account features are not wired in this provider yet"
-            description="The screens stay available for navigation, but actions that rely on missing provider methods remain disabled."
+            tone={capabilityNoticeCopy.tone}
+            title={capabilityNoticeCopy.title}
+            description={capabilityNoticeCopy.description}
           />
         ) : null}
-        <QuickLinkSection title="Workspace" rows={settingsRows} />
-        <QuickLinkSection title="Authentication" rows={authRows} />
+        {sections.map((section) => (
+          <QuickLinkSection
+            key={section.title}
+            title={section.title}
+            rows={section.rows.map((row) => ({
+              ...row,
+              onPress: () => router.push(row.href),
+            }))}
+          />
+        ))}
       </AccountingScreen>
     </>
   );

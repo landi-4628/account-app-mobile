@@ -4,12 +4,17 @@ import { StyleSheet } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 
+const copy = {
+  title: '\u8fd9\u662f\u4e00\u4e2a\u5f39\u7a97',
+  backHome: '\u8fd4\u56de\u9996\u9875',
+};
+
 export default function ModalScreen() {
   return (
     <ThemedView style={styles.container}>
-      <ThemedText type="title">This is a modal</ThemedText>
+      <ThemedText type="title">{copy.title}</ThemedText>
       <Link href="/" dismissTo style={styles.link}>
-        <ThemedText type="link">Go to home screen</ThemedText>
+        <ThemedText type="link">{copy.backHome}</ThemedText>
       </Link>
     </ThemedView>
   );

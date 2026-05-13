@@ -18,6 +18,26 @@ import {
 import { useAccountingTheme } from '@/components/accounting/use-accounting-theme';
 import { useMockApp } from '@/providers/mock-app-provider';
 
+const copy = {
+  title: '\u6ce8\u518c',
+  subtitle: '\u521b\u5efa\u65b0\u8d26\u53f7\uff0c\u51c6\u5907\u5f00\u59cb\u540c\u6b65\u548c\u8bb0\u8d26',
+  unavailableTitle: '\u5f53\u524d\u6682\u4e0d\u652f\u6301\u6ce8\u518c',
+  unavailableDescription: '\u9875\u9762\u5df2\u7ecf\u51c6\u5907\u597d\uff0c\u63a5\u5165\u6ce8\u518c\u80fd\u529b\u540e\u5373\u53ef\u63d0\u4ea4\u3002',
+  submitError: '\u6ce8\u518c\u5931\u8d25',
+  name: '\u59d3\u540d',
+  email: '\u90ae\u7bb1',
+  password: '\u5bc6\u7801',
+  confirmPassword: '\u786e\u8ba4\u5bc6\u7801',
+  nameError: '\u8bf7\u8f93\u5165\u59d3\u540d',
+  emailError: '\u8bf7\u8f93\u5165\u6709\u6548\u7684\u90ae\u7bb1\u5730\u5740',
+  passwordError: '\u5bc6\u7801\u81f3\u5c11 6 \u4f4d',
+  confirmPasswordError: '\u4e24\u6b21\u8f93\u5165\u7684\u5bc6\u7801\u4e0d\u4e00\u81f4',
+  back: '\u8fd4\u56de',
+  submit: '\u521b\u5efa\u8d26\u53f7',
+  loginPrompt: '\u5df2\u6709\u8d26\u53f7\uff1f',
+  loginLink: '\u53bb\u767b\u5f55',
+};
+
 function RegisterButton({ label, onPress, disabled, secondary = false }) {
   const theme = useAccountingTheme();
   const styles = createButtonStyles(theme);
@@ -114,67 +134,64 @@ export default function RegisterScreen() {
       });
       router.replace('/(tabs)/profile');
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Unable to register');
+      setSubmitError(error instanceof Error ? error.message : copy.submitError);
     }
   }, [actions, availability.canRegister, draft, router]);
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Register' }} />
+      <Stack.Screen options={{ title: copy.title }} />
       <AccountingScreen>
-        <SectionHeader
-          title="Register"
-          subtitle="A defensive sign-up form that waits for a provider action"
-        />
+        <SectionHeader title={copy.title} subtitle={copy.subtitle} />
         {capabilityNotice ? (
           <InfoBanner
             tone="warning"
-            title="Registration is not available in the current provider"
-            description="The route is ready, but submit stays disabled until a register action is exposed."
+            title={copy.unavailableTitle}
+            description={copy.unavailableDescription}
           />
         ) : null}
         {submitError ? <InfoBanner tone="warning" title={submitError} /> : null}
         <SurfaceCard style={styles.card}>
           <FormField
-            label="Name"
+            label={copy.name}
             value={draft.name}
             onChangeText={(value) => handleChange('name', value)}
-            error={errors.name ? 'Enter your name.' : undefined}
+            error={errors.name ? copy.nameError : undefined}
             autoCapitalize="words"
           />
           <FormField
-            label="Email"
+            label={copy.email}
             value={draft.email}
             onChangeText={(value) => handleChange('email', value)}
-            error={errors.email ? 'Enter a valid email.' : undefined}
+            error={errors.email ? copy.emailError : undefined}
             keyboardType="email-address"
           />
           <FormField
-            label="Password"
+            label={copy.password}
             value={draft.password}
             onChangeText={(value) => handleChange('password', value)}
-            error={errors.password ? 'Use at least 6 characters.' : undefined}
+            error={errors.password ? copy.passwordError : undefined}
             secureTextEntry
           />
           <FormField
-            label="Confirm password"
+            label={copy.confirmPassword}
             value={draft.confirmPassword}
             onChangeText={(value) => handleChange('confirmPassword', value)}
-            error={errors.confirmPassword ? 'Passwords must match.' : undefined}
+            error={errors.confirmPassword ? copy.confirmPasswordError : undefined}
             secureTextEntry
           />
           <View style={styles.actions}>
-            <RegisterButton label="Back" secondary onPress={() => router.back()} />
+            <RegisterButton label={copy.back} secondary onPress={() => router.back()} />
             <RegisterButton
-              label="Create account"
+              label={copy.submit}
               onPress={() => void handleSubmit()}
               disabled={!availability.canRegister}
             />
           </View>
           <Text style={styles.footerText}>
-            Already have an account?{' '}
+            {copy.loginPrompt}{' '}
             <Link href="/auth/login" style={styles.footerLink}>
-              Login
+              {copy.loginLink}
             </Link>
           </Text>
         </SurfaceCard>
