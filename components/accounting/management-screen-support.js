@@ -9,6 +9,8 @@ export function getActionAvailability(actions) {
     canChangePassword: hasFunction(actions?.changePassword),
     canEditAccounts: hasFunction(actions?.updateAccount) || hasFunction(actions?.saveAccount),
     canEditCategories: hasFunction(actions?.updateCategory) || hasFunction(actions?.saveCategory),
+    canDeleteAccounts: hasFunction(actions?.deleteAccount),
+    canDeleteCategories: hasFunction(actions?.deleteCategory),
     canLogin: hasFunction(actions?.login),
     canRegister: hasFunction(actions?.register),
     canToggleAccounts: hasFunction(actions?.toggleAccountActive),
@@ -32,8 +34,16 @@ export function buildCapabilityNotice(feature, availability) {
   const capabilityKey = capabilityMap[feature];
   const effectiveAvailability = {
     ...availability,
-    canManageAccounts: Boolean(availability?.canEditAccounts || availability?.canToggleAccounts),
-    canManageCategories: Boolean(availability?.canEditCategories || availability?.canToggleCategories),
+    canManageAccounts: Boolean(
+      availability?.canEditAccounts ||
+        availability?.canToggleAccounts ||
+        availability?.canDeleteAccounts
+    ),
+    canManageCategories: Boolean(
+      availability?.canEditCategories ||
+        availability?.canToggleCategories ||
+        availability?.canDeleteCategories
+    ),
   };
 
   if (!capabilityKey || effectiveAvailability[capabilityKey]) {
@@ -55,8 +65,12 @@ function compareNames(left, right) {
 
 export function buildAccountManagementViewModel(accounts, actions) {
   const availability = getActionAvailability(actions);
-  const canManageExisting = availability.canEditAccounts || availability.canToggleAccounts;
+  const canManageExisting =
+    availability.canEditAccounts ||
+    availability.canToggleAccounts ||
+    availability.canDeleteAccounts;
   const rows = [...accounts]
+    .filter((account) => account.deletedAt == null)
     .sort((left, right) => {
       if (left.isActive !== right.isActive) {
         return left.isActive ? -1 : 1;
@@ -80,8 +94,12 @@ export function buildAccountManagementViewModel(accounts, actions) {
 
 export function buildCategoryManagementViewModel(categories, entryType, actions) {
   const availability = getActionAvailability(actions);
-  const canManageExisting = availability.canEditCategories || availability.canToggleCategories;
+  const canManageExisting =
+    availability.canEditCategories ||
+    availability.canToggleCategories ||
+    availability.canDeleteCategories;
   const rows = [...categories]
+    .filter((category) => category.deletedAt == null)
     .filter((category) => category.type === entryType)
     .sort(compareNames)
     .map((category) => ({

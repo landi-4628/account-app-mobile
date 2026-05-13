@@ -67,4 +67,4 @@ export const SQLITE_TABLE_DEFINITIONS = [
   },
 ];
 
-export const SQLITE_SCHEMA_VERSION = 1;
+export const SQLITE_SCHEMA_VERSION = 3;

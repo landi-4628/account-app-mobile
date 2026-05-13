@@ -15,10 +15,11 @@ import { useAccountingTheme } from './use-accounting-theme.js';
  *   meta?: string | null | undefined,
  *   badge?: { label: string, tone?: 'neutral' | 'warning' } | null | undefined,
  *   onPress?: (() => void) | undefined,
+ *   onLongPress?: (() => void) | undefined,
  *   disabled?: boolean | undefined,
  * }} props
  */
-export function ManagementRow({ title, subtitle, meta, badge, onPress, disabled = false }) {
+export function ManagementRow({ title, subtitle, meta, badge, onPress, onLongPress, disabled = false }) {
   const { colors, spacing, radius, typography } = useAccountingTheme();
   const styles = createStyles(colors, spacing, radius, typography);
 
@@ -27,6 +28,7 @@ export function ManagementRow({ title, subtitle, meta, badge, onPress, disabled 
       accessibilityRole="button"
       disabled={disabled}
       onPress={onPress}
+      onLongPress={onLongPress}
       style={({ pressed }) => [styles.row, pressed && !disabled ? styles.pressed : null, disabled ? styles.disabled : null]}>
       <View style={styles.copy}>
         <View style={styles.titleRow}>

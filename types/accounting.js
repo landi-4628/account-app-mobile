@@ -27,6 +27,8 @@
  * @property {number} currentBalance
  * @property {boolean} isActive
  * @property {boolean | undefined} [isCustom]
+ * @property {string | undefined} [remoteId]
+ * @property {string | null | undefined} [deletedAt]
  */
 
 /**
@@ -36,6 +38,9 @@
  * @property {EntryType} type
  * @property {boolean} isActive
  * @property {boolean | undefined} [isCustom]
+ * @property {string | undefined} [remoteId]
+ * @property {string | null | undefined} [deletedAt]
+ * @property {string | undefined} [color]
  */
 
 /**

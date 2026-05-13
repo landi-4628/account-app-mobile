@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Stack } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   AccountingScreen,
@@ -40,6 +40,15 @@ const copy = {
   tapToDeactivate: '\u70b9\u51fb\u505c\u7528',
   tapToActivate: '\u70b9\u51fb\u542f\u7528',
   inactive: '\u5df2\u505c\u7528',
+  editTitle: '\u7f16\u8f91\u5206\u7c7b',
+  saveEdit: '\u4fdd\u5b58',
+  cancelEdit: '\u53d6\u6d88',
+  editHint: '\u957f\u6309\u81ea\u5efa\u5206\u7c7b\u53ef\u7f16\u8f91\u6216\u5220\u9664',
+  deleteConfirmTitle: '\u786e\u8ba4\u5220\u9664',
+  deleteConfirmBody: '\u5220\u9664\u540e\u4e0d\u53ef\u6062\u590d\u3002',
+  deleteAction: '\u5220\u9664',
+  cancelAction: '\u53d6\u6d88',
+  editAction: '\u7f16\u8f91',
 };
 
 function EntryTypePicker({ value, onChange, disabled }) {
@@ -160,6 +169,11 @@ export default function CategoriesScreen() {
   const [entryType, setEntryType] = useState('expense');
   const [name, setName] = useState('');
   const [submitError, setSubmitError] = useState('');
+  const [editCategory, setEditCategory] = useState(
+    /** @type {{ id: string, name: string, type: string } | null} */ (null)
+  );
+  const [editName, setEditName] = useState('');
+  const [editEntryType, setEditEntryType] = useState('expense');
   const viewModel = useMemo(
     () => buildCategoryManagementViewModel(categories, entryType, actions),
     [actions, categories, entryType]
@@ -167,13 +181,59 @@ export default function CategoriesScreen() {
   const createNotice = buildCapabilityNotice('categoriesCreate', availability);
   const manageNotice = buildCapabilityNotice('categoriesManage', availability);
 
-  const handleCreate = React.useCallback(() => {
+  const openCategoryMenu = React.useCallback(
+    (row) => {
+      if (!row.item.isCustom) {
+        return;
+      }
+
+      Alert.alert(row.item.name, undefined, [
+        { text: copy.cancelAction, style: 'cancel' },
+        {
+          text: copy.editAction,
+          onPress: () => {
+            setEditName(row.item.name);
+            setEditEntryType(row.item.type);
+            setEditCategory({ id: row.id, name: row.item.name, type: row.item.type });
+          },
+        },
+        {
+          text: copy.deleteAction,
+          style: 'destructive',
+          onPress: () =>
+            Alert.alert(copy.deleteConfirmTitle, copy.deleteConfirmBody, [
+              { text: copy.cancelAction, style: 'cancel' },
+              {
+                text: copy.deleteAction,
+                style: 'destructive',
+                onPress: () => void actions.deleteCategory?.(row.id),
+              },
+            ]),
+        },
+      ]);
+    },
+    [actions]
+  );
+
+  const handleSaveCategoryEdit = React.useCallback(() => {
+    if (!editCategory || !editName.trim()) {
+      return;
+    }
+
+    void actions.updateCategory?.(editCategory.id, {
+      name: editName.trim(),
+      type: /** @type {import('@/types/accounting').EntryType} */ (editEntryType),
+    });
+    setEditCategory(null);
+  }, [actions, editCategory, editEntryType, editName]);
+
+  const handleCreate = React.useCallback(async () => {
     if (!name.trim() || !availability.canCreateCategories) {
       return;
     }
 
     try {
-      actions.addCategory?.({
+      await actions.addCategory?.({
         name: name.trim(),
         type: entryType,
       });
@@ -185,12 +245,12 @@ export default function CategoriesScreen() {
   }, [actions, availability.canCreateCategories, entryType, name]);
 
   const handleToggleActive = React.useCallback(
-    (categoryId, isActive) => {
+    async (categoryId, isActive) => {
       if (!viewModel.canManageExisting) {
         return;
       }
 
-      actions.toggleCategoryActive?.(categoryId, !isActive);
+      await actions.toggleCategoryActive?.(categoryId, !isActive);
     },
     [actions, viewModel.canManageExisting]
   );
@@ -215,6 +275,7 @@ export default function CategoriesScreen() {
           />
         ) : null}
         {submitError ? <InfoBanner tone="warning" title={submitError} /> : null}
+        <Text style={styles.hint}>{copy.editHint}</Text>
         <SurfaceCard style={styles.card}>
           <Text style={styles.sectionTitle}>{copy.newCategory}</Text>
           <View style={styles.fieldGroup}>
@@ -234,7 +295,7 @@ export default function CategoriesScreen() {
           />
           <AddCategoryButton
             disabled={!availability.canCreateCategories || !name.trim()}
-            onPress={handleCreate}
+            onPress={() => void handleCreate()}
           />
         </SurfaceCard>
         <View style={styles.listSection}>
@@ -250,11 +311,47 @@ export default function CategoriesScreen() {
                 meta={row.isActive ? copy.tapToDeactivate : copy.tapToActivate}
                 badge={row.isActive ? null : { label: copy.inactive, tone: 'warning' }}
                 disabled={!viewModel.canManageExisting}
-                onPress={() => handleToggleActive(row.id, row.isActive)}
+                onPress={() => void handleToggleActive(row.id, row.isActive)}
+                onLongPress={() => openCategoryMenu(row)}
               />
             ))}
           </View>
         </View>
+        <Modal
+          visible={editCategory != null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setEditCategory(null)}>
+          <View style={styles.modalBackdrop}>
+            <SurfaceCard style={styles.modalCard}>
+              <Text style={styles.sectionTitle}>{copy.editTitle}</Text>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>{copy.type}</Text>
+                <EntryTypePicker value={editEntryType} onChange={setEditEntryType} disabled={false} />
+              </View>
+              <FormField label={copy.categoryName} value={editName} onChangeText={setEditName} />
+              <View style={styles.modalActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setEditCategory(null)}
+                  style={({ pressed }) => [styles.modalCancel, pressed ? styles.modalPressed : null]}>
+                  <Text style={styles.modalCancelText}>{copy.cancelEdit}</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={!editName.trim()}
+                  onPress={() => void handleSaveCategoryEdit()}
+                  style={({ pressed }) => [
+                    styles.modalSave,
+                    !editName.trim() ? styles.modalSaveDisabled : null,
+                    pressed && editName.trim() ? styles.modalPressed : null,
+                  ]}>
+                  <Text style={styles.modalSaveText}>{copy.saveEdit}</Text>
+                </Pressable>
+              </View>
+            </SurfaceCard>
+          </View>
+        </Modal>
       </AccountingScreen>
     </>
   );
@@ -283,6 +380,58 @@ function createStyles({ colors, spacing, typography }) {
     },
     list: {
       gap: spacing.sm,
+    },
+    hint: {
+      fontSize: typography.caption,
+      color: colors.textSecondary,
+      marginBottom: spacing.sm,
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      justifyContent: 'center',
+      padding: spacing.md,
+    },
+    modalCard: {
+      gap: spacing.md,
+    },
+    modalActions: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
+    modalCancel: {
+      flex: 1,
+      minHeight: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceAlt,
+    },
+    modalCancelText: {
+      fontSize: typography.body,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    modalSave: {
+      flex: 1,
+      minHeight: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 8,
+      backgroundColor: colors.brand,
+    },
+    modalSaveDisabled: {
+      opacity: 0.5,
+    },
+    modalSaveText: {
+      fontSize: typography.body,
+      fontWeight: '700',
+      color: colors.textInverse,
+    },
+    modalPressed: {
+      opacity: 0.85,
     },
   });
 }

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Stack } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   AccountingScreen,
@@ -37,6 +37,15 @@ const copy = {
   tapToDeactivate: '\u70b9\u51fb\u505c\u7528',
   tapToActivate: '\u70b9\u51fb\u542f\u7528',
   inactive: '\u5df2\u505c\u7528',
+  editTitle: '\u7f16\u8f91\u8d26\u6237',
+  saveEdit: '\u4fdd\u5b58',
+  cancelEdit: '\u53d6\u6d88',
+  editHint: '\u957f\u6309\u81ea\u5efa\u8d26\u6237\u53ef\u7f16\u8f91\u6216\u5220\u9664',
+  deleteConfirmTitle: '\u786e\u8ba4\u5220\u9664',
+  deleteConfirmBody: '\u5220\u9664\u540e\u4e0d\u53ef\u6062\u590d\u3002',
+  deleteAction: '\u5220\u9664',
+  cancelAction: '\u53d6\u6d88',
+  editAction: '\u7f16\u8f91',
 };
 
 function TypePicker({ value, onChange, disabled }) {
@@ -150,6 +159,62 @@ function createAddButtonStyles({ colors, spacing, radius, typography }) {
   });
 }
 
+function AuthButton({ label, onPress, disabled, secondary = false }) {
+  const theme = useAccountingTheme();
+  const styles = createAuthButtonStyles(theme);
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.button,
+        secondary ? styles.buttonSecondary : styles.buttonPrimary,
+        disabled ? styles.buttonDisabled : null,
+        pressed && !disabled ? styles.buttonPressed : null,
+      ]}>
+      <Text style={secondary ? styles.labelSecondary : styles.labelPrimary}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function createAuthButtonStyles({ colors, spacing, radius, typography }) {
+  return StyleSheet.create({
+    button: {
+      minHeight: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.md,
+      paddingHorizontal: spacing.md,
+    },
+    buttonPrimary: {
+      backgroundColor: colors.brand,
+    },
+    buttonSecondary: {
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    buttonDisabled: {
+      opacity: 0.5,
+    },
+    buttonPressed: {
+      opacity: 0.85,
+    },
+    labelPrimary: {
+      fontSize: typography.body,
+      fontWeight: '700',
+      color: colors.textInverse,
+    },
+    labelSecondary: {
+      fontSize: typography.body,
+      fontWeight: '700',
+      color: colors.text,
+    },
+  });
+}
+
 export default function AccountsScreen() {
   const { accounts, actions } = useMockApp();
   const theme = useAccountingTheme();
@@ -162,16 +227,67 @@ export default function AccountsScreen() {
   const [name, setName] = useState('');
   const [type, setType] = useState('cash');
   const [submitError, setSubmitError] = useState('');
+  const [editAccount, setEditAccount] = useState(
+    /** @type {{ id: string, name: string, type: string } | null} */ (null)
+  );
+  const [editName, setEditName] = useState('');
+  const [editType, setEditType] = useState('cash');
   const createNotice = buildCapabilityNotice('accountsCreate', availability);
   const manageNotice = buildCapabilityNotice('accountsManage', availability);
 
-  const handleCreate = React.useCallback(() => {
+  const openAccountMenu = React.useCallback(
+    (row) => {
+      if (!row.item.isCustom) {
+        return;
+      }
+
+      Alert.alert(row.item.name, undefined, [
+        { text: copy.cancelAction, style: 'cancel' },
+        {
+          text: copy.editAction,
+          onPress: () => {
+            setEditName(row.item.name);
+            setEditType(row.item.type);
+            setEditAccount({ id: row.id, name: row.item.name, type: row.item.type });
+          },
+        },
+        {
+          text: copy.deleteAction,
+          style: 'destructive',
+          onPress: () =>
+            Alert.alert(copy.deleteConfirmTitle, copy.deleteConfirmBody, [
+              { text: copy.cancelAction, style: 'cancel' },
+              {
+                text: copy.deleteAction,
+                style: 'destructive',
+                onPress: () => void actions.deleteAccount?.(row.id),
+              },
+            ]),
+        },
+      ]);
+    },
+    [actions]
+  );
+
+  const handleSaveEdit = React.useCallback(() => {
+    if (!editAccount || !editName.trim()) {
+      return;
+    }
+
+    void actions.updateAccount?.(editAccount.id, {
+      name: editName.trim(),
+      type: /** @type {import('@/types/accounting').AccountType} */ (editType),
+    });
+    setEditAccount(null);
+  }, [actions, editAccount, editName, editType]);
+
+  const handleCreate = React.useCallback(async () => {
     if (!name.trim() || !availability.canCreateAccounts) {
       return;
     }
 
     try {
-      actions.addAccount?.({
+      await actions.addAccount?.({
         name: name.trim(),
         type,
       });
@@ -183,12 +299,12 @@ export default function AccountsScreen() {
   }, [actions, availability.canCreateAccounts, name, type]);
 
   const handleToggleActive = React.useCallback(
-    (accountId, isActive) => {
+    async (accountId, isActive) => {
       if (!viewModel.canManageExisting) {
         return;
       }
 
-      actions.toggleAccountActive?.(accountId, !isActive);
+      await actions.toggleAccountActive?.(accountId, !isActive);
     },
     [actions, viewModel.canManageExisting]
   );
@@ -213,6 +329,7 @@ export default function AccountsScreen() {
           />
         ) : null}
         {submitError ? <InfoBanner tone="warning" title={submitError} /> : null}
+        <Text style={styles.hint}>{copy.editHint}</Text>
         <SurfaceCard style={styles.card}>
           <Text style={styles.sectionTitle}>{copy.newAccount}</Text>
           <FormField
@@ -232,7 +349,7 @@ export default function AccountsScreen() {
           </View>
           <AddAccountButton
             disabled={!availability.canCreateAccounts || !name.trim()}
-            onPress={handleCreate}
+            onPress={() => void handleCreate()}
           />
         </SurfaceCard>
         <View style={styles.listSection}>
@@ -246,11 +363,32 @@ export default function AccountsScreen() {
                 meta={row.isActive ? copy.tapToDeactivate : copy.tapToActivate}
                 badge={row.isActive ? null : { label: copy.inactive, tone: 'warning' }}
                 disabled={!viewModel.canManageExisting}
-                onPress={() => handleToggleActive(row.id, row.isActive)}
+                onPress={() => void handleToggleActive(row.id, row.isActive)}
+                onLongPress={() => openAccountMenu(row)}
               />
             ))}
           </View>
         </View>
+        <Modal
+          visible={editAccount != null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setEditAccount(null)}>
+          <View style={styles.modalBackdrop}>
+            <SurfaceCard style={styles.modalCard}>
+              <Text style={styles.sectionTitle}>{copy.editTitle}</Text>
+              <FormField label={copy.accountName} value={editName} onChangeText={setEditName} />
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>{copy.accountType}</Text>
+                <TypePicker value={editType} onChange={setEditType} disabled={false} />
+              </View>
+              <View style={styles.actions}>
+                <AuthButton label={copy.cancelEdit} secondary onPress={() => setEditAccount(null)} />
+                <AuthButton label={copy.saveEdit} onPress={() => void handleSaveEdit()} disabled={!editName.trim()} />
+              </View>
+            </SurfaceCard>
+          </View>
+        </Modal>
       </AccountingScreen>
     </>
   );
@@ -274,11 +412,29 @@ function createStyles({ colors, spacing, typography }) {
       fontWeight: '600',
       color: colors.text,
     },
+    actions: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
     listSection: {
       gap: spacing.sm,
     },
     list: {
       gap: spacing.sm,
+    },
+    hint: {
+      fontSize: typography.caption,
+      color: colors.textSecondary,
+      marginBottom: spacing.sm,
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      justifyContent: 'center',
+      padding: spacing.md,
+    },
+    modalCard: {
+      gap: spacing.md,
     },
   });
 }

@@ -53,9 +53,14 @@ const DEFAULT_ENTRY_TYPE = 'expense';
  * @typedef {{ type: 'addAccount', account: LedgerAccount }} AddAccountAction
  * @typedef {{ type: 'toggleCategoryActive', categoryId: string, isActive: boolean }} ToggleCategoryActiveAction
  * @typedef {{ type: 'toggleAccountActive', accountId: string, isActive: boolean }} ToggleAccountActiveAction
+ * @typedef {{ type: 'updateAccount', accountId: string, updates: Partial<LedgerAccount> }} UpdateAccountAction
+ * @typedef {{ type: 'deleteAccount', accountId: string }} DeleteAccountAction
+ * @typedef {{ type: 'updateCategory', categoryId: string, updates: Partial<LedgerCategory> }} UpdateCategoryAction
+ * @typedef {{ type: 'deleteCategory', categoryId: string }} DeleteCategoryAction
+ * @typedef {{ type: 'reconcileCustomDefinitions', accounts: LedgerAccount[], categories: LedgerCategory[] }} ReconcileCustomDefinitionsAction
  * @typedef {{ type: 'hydrateCustomDefinitions', definitions: { categories?: LedgerCategory[] | undefined, accounts?: LedgerAccount[] | undefined } }} HydrateCustomDefinitionsAction
  * @typedef {{ type: 'hydrateSnapshot', snapshot: import('./mock-app-snapshot.js').MockAppSnapshot }} HydrateSnapshotAction
- * @typedef {OpenQuickAddAction | CloseQuickAddAction | SetSelectedEntryTypeAction | SetCurrentMonthAction | AddTransactionAction | UpdateTransactionAction | DeleteTransactionAction | UpdateTransactionSyncStatusAction | AddCategoryAction | AddAccountAction | ToggleCategoryActiveAction | ToggleAccountActiveAction | HydrateCustomDefinitionsAction | HydrateSnapshotAction} MockAppAction
+ * @typedef {OpenQuickAddAction | CloseQuickAddAction | SetSelectedEntryTypeAction | SetCurrentMonthAction | AddTransactionAction | UpdateTransactionAction | DeleteTransactionAction | UpdateTransactionSyncStatusAction | AddCategoryAction | AddAccountAction | ToggleCategoryActiveAction | ToggleAccountActiveAction | UpdateAccountAction | DeleteAccountAction | UpdateCategoryAction | DeleteCategoryAction | ReconcileCustomDefinitionsAction | HydrateCustomDefinitionsAction | HydrateSnapshotAction} MockAppAction
  */
 
 /**
@@ -381,6 +386,27 @@ export function createInitialMockAppState() {
 }
 
 /**
+ * @template {{ id: string, isCustom?: boolean | undefined }} T
+ * @param {T[]} base
+ * @param {T[]} incoming
+ * @returns {T[]}
+ */
+function reconcileCustomRows(base, incoming) {
+  const incomingById = new Map(incoming.map((item) => [item.id, item]));
+  const merged = base.map((item) => {
+    if (!item.isCustom) {
+      return item;
+    }
+
+    const patch = incomingById.get(item.id);
+    return patch ? { ...item, ...patch } : item;
+  });
+  const baseIds = new Set(base.map((b) => b.id));
+  const appended = incoming.filter((item) => !baseIds.has(item.id));
+  return [...merged, ...appended];
+}
+
+/**
  * @param {MockAppState} state
  * @param {MockAppAction} action
  * @returns {MockAppState}
@@ -470,6 +496,48 @@ export function mockAppReducer(state, action) {
             : account
         ),
       };
+    case 'updateAccount':
+      return {
+        ...state,
+        accounts: state.accounts.map((account) =>
+          account.id === action.accountId ? { ...account, ...action.updates } : account
+        ),
+      };
+    case 'deleteAccount': {
+      const deletedAt = new Date().toISOString();
+      return {
+        ...state,
+        accounts: state.accounts.map((account) =>
+          account.id === action.accountId
+            ? { ...account, deletedAt, isActive: false }
+            : account
+        ),
+      };
+    }
+    case 'updateCategory':
+      return {
+        ...state,
+        categories: state.categories.map((category) =>
+          category.id === action.categoryId ? { ...category, ...action.updates } : category
+        ),
+      };
+    case 'deleteCategory': {
+      const deletedAt = new Date().toISOString();
+      return {
+        ...state,
+        categories: state.categories.map((category) =>
+          category.id === action.categoryId
+            ? { ...category, deletedAt, isActive: false }
+            : category
+        ),
+      };
+    }
+    case 'reconcileCustomDefinitions':
+      return {
+        ...state,
+        accounts: reconcileCustomRows(state.accounts, action.accounts),
+        categories: reconcileCustomRows(state.categories, action.categories),
+      };
     case 'hydrateSnapshot':
       return applyMockAppSnapshot(state, action.snapshot);
     case 'hydrateCustomDefinitions':
@@ -529,7 +597,9 @@ export function selectCurrentMonthStatistics(state) {
  * @returns {LedgerAccount[]}
  */
 export function selectAccountSummaries(state) {
-  return state.accounts.map((account) => {
+  return state.accounts
+    .filter((account) => account.deletedAt == null)
+    .map((account) => {
     const delta = state.transactions.reduce((sum, transaction) => {
       if (transaction.accountId !== account.id || isDeletedTransaction(transaction)) {
         return sum;
@@ -585,7 +655,9 @@ export function selectCurrentMonthData(state) {
  * @returns {LedgerCategory[]}
  */
 export function selectCategoriesByType(state, entryType) {
-  return state.categories.filter((category) => category.type === entryType);
+  return state.categories.filter(
+    (category) => category.type === entryType && category.deletedAt == null
+  );
 }
 
 /**

@@ -38,6 +38,16 @@ import {
   selectCompactedMockAppSnapshot,
   selectMockAppSnapshot,
 } from '../state/mock-app-snapshot.js';
+import { useSQLiteContext } from 'expo-sqlite';
+import { createAccountRepository } from '../data/repositories/account-repository.js';
+import { createCategoryRepository } from '../data/repositories/category-repository.js';
+import { createLedgerDefinitionsApi } from '../lib/ledger-definitions-api.js';
+import {
+  ledgerAccountToInsert,
+  ledgerCategoryToInsert,
+  repoAccountRowToLedger,
+  repoCategoryRowToLedger,
+} from './local-definition-mappers.js';
 import { getSyncableTransactions, shouldAutoSync } from './mock-app-sync-support.js';
 
 /**
@@ -69,10 +79,14 @@ import { getSyncableTransactions, shouldAutoSync } from './mock-app-sync-support
  * @property {(transactionId: string, updates: EditTransactionInput) => void} updateTransaction
  * @property {(transactionId: string) => void} deleteTransaction
  * @property {(transactionId: string, syncStatus: import('../types/accounting').SyncStatus, updatedAt?: string | undefined) => void} updateTransactionSyncStatus
- * @property {(input: { name: string, type: EntryType }) => LedgerCategory} addCategory
- * @property {(input: { name: string, type: import('../types/accounting').AccountType }) => LedgerAccount} addAccount
- * @property {(categoryId: string, isActive: boolean) => void} toggleCategoryActive
- * @property {(accountId: string, isActive: boolean) => void} toggleAccountActive
+ * @property {(input: { name: string, type: EntryType }) => Promise<LedgerCategory>} addCategory
+ * @property {(input: { name: string, type: import('../types/accounting').AccountType }) => Promise<LedgerAccount>} addAccount
+ * @property {(categoryId: string, isActive: boolean) => Promise<void>} toggleCategoryActive
+ * @property {(accountId: string, isActive: boolean) => Promise<void>} toggleAccountActive
+ * @property {(accountId: string, updates: Partial<LedgerAccount>) => Promise<void>} updateAccount
+ * @property {(accountId: string) => Promise<void>} deleteAccount
+ * @property {(categoryId: string, updates: Partial<LedgerCategory>) => Promise<void>} updateCategory
+ * @property {(categoryId: string) => Promise<void>} deleteCategory
  * @property {(enabled: boolean) => void} setAutoSyncEnabled
  * @property {() => Promise<void>} syncPendingTransactions
  * @property {(input: { email: string, password: string }) => Promise<unknown>} login
@@ -175,6 +189,19 @@ export function MockAppProvider({ children }) {
     []
   );
 
+  const sqlite = useSQLiteContext();
+  const accountRepo = useMemo(() => createAccountRepository(/** @type {any} */ (sqlite)), [sqlite]);
+  const categoryRepo = useMemo(() => createCategoryRepository(/** @type {any} */ (sqlite)), [sqlite]);
+  const definitionsApi = useMemo(
+    () =>
+      createLedgerDefinitionsApi({
+        apiClient: createApiClient({
+          baseUrl: REMOTE_API_BASE_URL,
+        }),
+      }),
+    []
+  );
+
   const currentMonthData = useMemo(() => selectCurrentMonthData(state), [state]);
   const accountSummaries = useMemo(() => selectAccountSummaries(state), [state]);
   const syncSummary = useMemo(() => selectSyncSummary(state), [state]);
@@ -184,6 +211,30 @@ export function MockAppProvider({ children }) {
   const remoteAccessToken = authSession?.accessToken ?? null;
   const remoteLedgerId = remoteUser?.currentLedgerId ?? null;
   const canSyncRemotely = Boolean(remoteAccessToken && remoteLedgerId != null);
+  const ownerUserId = authSession?.userId ?? '';
+
+  const persistCustomAccount = useCallback(
+    async (/** @type {LedgerAccount} */ account) => {
+      if (!ownerUserId || !account.isCustom) {
+        return;
+      }
+
+      await accountRepo.saveAccount(ledgerAccountToInsert(account, ownerUserId));
+    },
+    [accountRepo, ownerUserId]
+  );
+
+  const persistCustomCategory = useCallback(
+    async (/** @type {LedgerCategory} */ category) => {
+      if (!ownerUserId || !category.isCustom) {
+        return;
+      }
+
+      await categoryRepo.saveCategory(ledgerCategoryToInsert(category, ownerUserId));
+    },
+    [categoryRepo, ownerUserId]
+  );
+
   const reduceState = useCallback(
     /**
      * @param {MockAppState} currentState
@@ -343,6 +394,41 @@ export function MockAppProvider({ children }) {
 
     lastAuthenticatedUserIdRef.current = authSession?.userId ?? null;
   }, [authSession?.userId, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated || !ownerUserId) {
+      return;
+    }
+
+    let active = true;
+
+    async function pullLocalDefinitions() {
+      try {
+        const [accountRows, categoryRows] = await Promise.all([
+          accountRepo.listAccounts(ownerUserId),
+          categoryRepo.listCategories(ownerUserId),
+        ]);
+
+        if (!active) {
+          return;
+        }
+
+        dispatch({
+          type: 'reconcileCustomDefinitions',
+          accounts: accountRows.map(repoAccountRowToLedger),
+          categories: categoryRows.map(repoCategoryRowToLedger),
+        });
+      } catch {
+        // SQLite may be unavailable during rapid teardown; ignore.
+      }
+    }
+
+    void pullLocalDefinitions();
+
+    return () => {
+      active = false;
+    };
+  }, [hydrated, ownerUserId, accountRepo, categoryRepo]);
 
   useEffect(() => {
     if (!hydrated || !remoteAccessToken || remoteLedgerId == null) {
@@ -541,62 +627,253 @@ export function MockAppProvider({ children }) {
             syncStatus,
             updatedAt,
           }),
-        addCategory: ({ name, type }) => {
+        addCategory: async ({ name, type }) => {
           const category = createCustomCategoryRecord(name, type);
           /** @type {MockAppAction} */
           const action = {
             type: 'addCategory',
             category,
           };
-          const nextState = reduceState(state, action);
-
+          let working = reduceState(state, action);
           dispatch(action);
+          await persistCustomCategory(working.categories.find((c) => c.id === category.id) ?? category);
+
           if (canSyncRemotely) {
-            void syncRemoteState(nextState);
+            const accessToken = remoteAccessToken;
+            if (!accessToken) {
+              return category;
+            }
+
+            try {
+              const res = await definitionsApi.createCategory(accessToken, {
+                client_id: category.id,
+                name: category.name,
+                kind: category.type,
+              });
+              const remote = res?.data?.category;
+              if (remote?.id) {
+                const ua = {
+                  type: 'updateCategory',
+                  categoryId: category.id,
+                  updates: { remoteId: String(remote.id) },
+                };
+                working = reduceState(working, /** @type {any} */ (ua));
+                dispatch(/** @type {any} */ (ua));
+                await persistCustomCategory(
+                  working.categories.find((c) => c.id === category.id) ?? category
+                );
+              }
+            } catch {
+              // 远端失败时保留本地记录
+            }
+
+            void syncRemoteState(working);
           }
 
           return category;
         },
-        addAccount: ({ name, type }) => {
+        addAccount: async ({ name, type }) => {
           const account = createCustomAccountRecord(name, type);
           /** @type {MockAppAction} */
           const action = {
             type: 'addAccount',
             account,
           };
-          const nextState = reduceState(state, action);
-
+          let working = reduceState(state, action);
           dispatch(action);
+          await persistCustomAccount(working.accounts.find((a) => a.id === account.id) ?? account);
+
           if (canSyncRemotely) {
-            void syncRemoteState(nextState);
+            const accessToken = remoteAccessToken;
+            if (!accessToken) {
+              return account;
+            }
+
+            try {
+              const res = await definitionsApi.createAccount(accessToken, {
+                client_id: account.id,
+                name: account.name,
+                type: account.type,
+                currency: 'CNY',
+                opening_balance: account.initialBalance ?? 0,
+              });
+              const remote = res?.data?.account;
+              if (remote?.id) {
+                const ua = {
+                  type: 'updateAccount',
+                  accountId: account.id,
+                  updates: { remoteId: String(remote.id) },
+                };
+                working = reduceState(working, /** @type {any} */ (ua));
+                dispatch(/** @type {any} */ (ua));
+                await persistCustomAccount(
+                  working.accounts.find((a) => a.id === account.id) ?? account
+                );
+              }
+            } catch {
+              // 远端失败时保留本地记录
+            }
+
+            void syncRemoteState(working);
           }
 
           return account;
         },
-        toggleCategoryActive: (categoryId, isActive) => {
+        toggleCategoryActive: async (categoryId, isActive) => {
           /** @type {MockAppAction} */
           const action = {
             type: 'toggleCategoryActive',
             categoryId,
             isActive,
           };
-          const nextState = reduceState(state, action);
+          let working = reduceState(state, action);
           dispatch(action);
-          if (canSyncRemotely) {
-            void syncRemoteState(nextState);
+          const cat = working.categories.find((c) => c.id === categoryId);
+          if (cat?.isCustom) {
+            await persistCustomCategory(cat);
+          }
+
+          if (canSyncRemotely && cat?.remoteId && remoteAccessToken) {
+            try {
+              await definitionsApi.updateCategory(remoteAccessToken, cat.remoteId, {
+                is_deleted: !isActive,
+                ...(isActive ? { deleted_at: null } : { deleted_at: new Date().toISOString() }),
+              });
+            } catch {
+              // ignore
+            }
+
+            void syncRemoteState(working);
+          } else if (canSyncRemotely) {
+            void syncRemoteState(working);
           }
         },
-        toggleAccountActive: (accountId, isActive) => {
+        toggleAccountActive: async (accountId, isActive) => {
           /** @type {MockAppAction} */
           const action = {
             type: 'toggleAccountActive',
             accountId,
             isActive,
           };
-          const nextState = reduceState(state, action);
+          let working = reduceState(state, action);
           dispatch(action);
-          if (canSyncRemotely) {
-            void syncRemoteState(nextState);
+          const acc = working.accounts.find((a) => a.id === accountId);
+          if (acc?.isCustom) {
+            await persistCustomAccount(acc);
+          }
+
+          if (canSyncRemotely && acc?.remoteId && remoteAccessToken) {
+            try {
+              await definitionsApi.updateAccount(remoteAccessToken, acc.remoteId, {
+                is_deleted: !isActive,
+                ...(isActive ? { deleted_at: null } : { deleted_at: new Date().toISOString() }),
+              });
+            } catch {
+              // ignore
+            }
+
+            void syncRemoteState(working);
+          } else if (canSyncRemotely) {
+            void syncRemoteState(working);
+          }
+        },
+        updateAccount: async (accountId, updates) => {
+          /** @type {MockAppAction} */
+          const action = {
+            type: 'updateAccount',
+            accountId,
+            updates,
+          };
+          let working = reduceState(state, action);
+          dispatch(action);
+          const acc = working.accounts.find((a) => a.id === accountId);
+          if (acc?.isCustom) {
+            await persistCustomAccount(acc);
+          }
+
+          if (canSyncRemotely && acc?.remoteId && remoteAccessToken) {
+            try {
+              await definitionsApi.updateAccount(remoteAccessToken, acc.remoteId, {
+                name: updates.name ?? acc.name,
+                type: updates.type ?? acc.type,
+                opening_balance:
+                  updates.initialBalance != null ? updates.initialBalance : acc.initialBalance,
+              });
+            } catch {
+              // ignore
+            }
+
+            void syncRemoteState(working);
+          }
+        },
+        deleteAccount: async (accountId) => {
+          /** @type {MockAppAction} */
+          const action = { type: 'deleteAccount', accountId };
+          let working = reduceState(state, action);
+          dispatch(action);
+          const acc = working.accounts.find((a) => a.id === accountId);
+          const deletedAt = acc?.deletedAt ?? new Date().toISOString();
+          if (ownerUserId) {
+            await accountRepo.softDeleteAccount(accountId, deletedAt, ownerUserId);
+          }
+
+          if (canSyncRemotely && acc?.remoteId && remoteAccessToken) {
+            try {
+              await definitionsApi.deleteAccount(remoteAccessToken, acc.remoteId);
+            } catch {
+              // ignore
+            }
+
+            void syncRemoteState(working);
+          }
+        },
+        updateCategory: async (categoryId, updates) => {
+          /** @type {MockAppAction} */
+          const action = {
+            type: 'updateCategory',
+            categoryId,
+            updates,
+          };
+          let working = reduceState(state, action);
+          dispatch(action);
+          const cat = working.categories.find((c) => c.id === categoryId);
+          if (cat?.isCustom) {
+            await persistCustomCategory(cat);
+          }
+
+          if (canSyncRemotely && cat?.remoteId && remoteAccessToken) {
+            try {
+              await definitionsApi.updateCategory(remoteAccessToken, cat.remoteId, {
+                name: updates.name ?? cat.name,
+                kind: updates.type ?? cat.type,
+                color: updates.color ?? cat.color,
+              });
+            } catch {
+              // ignore
+            }
+
+            void syncRemoteState(working);
+          }
+        },
+        deleteCategory: async (categoryId) => {
+          /** @type {MockAppAction} */
+          const action = { type: 'deleteCategory', categoryId };
+          let working = reduceState(state, action);
+          dispatch(action);
+          const cat = working.categories.find((c) => c.id === categoryId);
+          const deletedAt = cat?.deletedAt ?? new Date().toISOString();
+          if (ownerUserId) {
+            await categoryRepo.softDeleteCategory(categoryId, deletedAt, ownerUserId);
+          }
+
+          if (canSyncRemotely && cat?.remoteId && remoteAccessToken) {
+            try {
+              await definitionsApi.deleteCategory(remoteAccessToken, cat.remoteId);
+            } catch {
+              // ignore
+            }
+
+            void syncRemoteState(working);
           }
         },
         setAutoSyncEnabled: (enabled) => setAutoSyncEnabled(enabled),
@@ -667,14 +944,21 @@ export function MockAppProvider({ children }) {
       },
     }),
     [
+      accountRepo,
       accountSummaries,
       authApi,
+      authSession,
       autoSyncEnabled,
       canSyncRemotely,
+      categoryRepo,
       currentMonthData,
+      definitionsApi,
       effectiveUser,
       hydrateRemoteLedgerState,
       ledgerSyncApi,
+      ownerUserId,
+      persistCustomAccount,
+      persistCustomCategory,
       reduceState,
       remoteAccessToken,
       seededMonthlyStatistics,

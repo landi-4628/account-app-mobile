@@ -12,6 +12,7 @@ import {
 
 test('defines the core SQLite tables for auth, ledger data, transactions, and sync state', () => {
   assert.equal(SQLITE_SCHEMA_VERSION, SQLITE_MIGRATIONS.length);
+  assert.equal(SQLITE_SCHEMA_VERSION, 3);
   assert.deepEqual(
     SQLITE_TABLE_DEFINITIONS.map((definition) => definition.name),
     ['auth_session', 'accounts', 'categories', 'transactions', 'sync_state']

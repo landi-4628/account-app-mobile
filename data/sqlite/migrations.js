@@ -18,6 +18,21 @@ export const SQLITE_MIGRATIONS = [
       ) VALUES ('default', 0, NULL, 0, 0, '1970-01-01T00:00:00.000Z');`,
     ],
   },
+  {
+    version: 2,
+    statements: [
+      'ALTER TABLE accounts ADD COLUMN remote_id TEXT;',
+      'ALTER TABLE categories ADD COLUMN remote_id TEXT;',
+      'ALTER TABLE categories ADD COLUMN color TEXT;',
+    ],
+  },
+  {
+    version: 3,
+    statements: [
+      'ALTER TABLE accounts ADD COLUMN owner_user_id TEXT;',
+      'ALTER TABLE categories ADD COLUMN owner_user_id TEXT;',
+    ],
+  },
 ];
 
 /**
