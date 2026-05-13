@@ -3,6 +3,7 @@ import { Stack, useRouter } from 'expo-router';
 
 import { AccountingScreen, TransactionForm } from '@/components/accounting';
 import { accountingCopy } from '@/constants/accounting-copy';
+import { resolveImplicitAccountId } from '@/lib/resolve-implicit-account-id.js';
 import { useMockApp } from '@/providers/mock-app-provider';
 
 const DEFAULT_TIME_ZONE_OFFSET = '+08:00';
@@ -16,19 +17,14 @@ function buildCategoryOptions(categories) {
   }));
 }
 
-function buildAccountOptions(accounts) {
-  return accounts.map((account) => ({
-    value: account.id,
-    label: account.name,
-    isActive: account.isActive,
-  }));
-}
-
 export default function NewTransactionScreen() {
   const router = useRouter();
-  const { actions, accounts, categories, selectedEntryType, user } = useMockApp();
+  const { actions, categories, implicitLedgerAccountId, selectedEntryType, user } = useMockApp();
   const categoryOptions = useMemo(() => buildCategoryOptions(categories), [categories]);
-  const accountOptions = useMemo(() => buildAccountOptions(accounts), [accounts]);
+  const implicitAccountId = useMemo(
+    () => resolveImplicitAccountId(implicitLedgerAccountId, user.defaultAccountId),
+    [implicitLedgerAccountId, user.defaultAccountId]
+  );
 
   const handleSubmit = React.useCallback(
     (values) => {
@@ -43,13 +39,11 @@ export default function NewTransactionScreen() {
       <Stack.Screen options={{ title: accountingCopy.actions.addEntry }} />
       <AccountingScreen>
         <TransactionForm
-          accountOptions={accountOptions}
           categoryOptions={categoryOptions}
-          defaultAccountId={user.defaultAccountId}
+          implicitAccountId={implicitAccountId}
           defaultSyncStatus="pending"
           defaultType={selectedEntryType}
           mode="create"
-          onCreateAccount={actions.addAccount}
           onCreateCategory={actions.addCategory}
           submitLabel={accountingCopy.actions.addEntry}
           timeZoneOffset={DEFAULT_TIME_ZONE_OFFSET}

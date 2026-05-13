@@ -7,7 +7,7 @@ export const MOCK_APP_CUSTOM_DEFINITIONS_STORAGE_KEY =
 export function selectPersistedCustomDefinitions(state) {
   return {
     categories: state.categories.filter((category) => category.isCustom),
-    accounts: state.accounts.filter((account) => account.isCustom),
+    accounts: [],
   };
 }
 
@@ -22,7 +22,6 @@ export function mergePersistedCustomDefinitions(state, persisted) {
   return {
     ...state,
     categories: mergeUniqueById(state.categories, persisted.categories ?? []),
-    accounts: mergeUniqueById(state.accounts, persisted.accounts ?? []),
   };
 }
 

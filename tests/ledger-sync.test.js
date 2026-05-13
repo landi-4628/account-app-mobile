@@ -9,45 +9,20 @@ import {
   hasRemoteLedgerData,
 } from '../lib/ledger-sync.js';
 
-const REMOTE_ACCOUNT_ID = '10000000-0000-4000-8000-000000000012';
 const REMOTE_CATEGORY_ID = '20000000-0000-4000-8000-000000000034';
 const REMOTE_TX_ID = '70000000-0000-4000-8000-000000000077';
 
-test('builds definition sync payloads with client ids and optional remote ids', () => {
-  const payload = buildDefinitionsPushPayload(
-    [
-      {
-        id: 'acc-cash',
-        remoteId: REMOTE_ACCOUNT_ID,
-        name: 'Cash',
-        type: 'cash',
-        initialBalance: 5000,
-        isActive: true,
-      },
-    ],
-    [
-      {
-        id: 'cat-food',
-        name: 'Food',
-        type: 'expense',
-        isActive: true,
-      },
-    ]
-  );
+test('builds category-only definition sync payloads', () => {
+  const payload = buildDefinitionsPushPayload([
+    {
+      id: 'cat-food',
+      name: 'Food',
+      type: 'expense',
+      isActive: true,
+    },
+  ]);
 
   assert.deepEqual(payload, {
-    accounts: [
-      {
-        id: REMOTE_ACCOUNT_ID,
-        client_id: 'acc-cash',
-        name: 'Cash',
-        type: 'cash',
-        currency: 'CNY',
-        opening_balance: 5000,
-        is_deleted: false,
-        deleted_at: undefined,
-      },
-    ],
     categories: [
       {
         id: undefined,
@@ -62,7 +37,7 @@ test('builds definition sync payloads with client ids and optional remote ids', 
   });
 });
 
-test('builds transaction sync payloads from remote reference maps', () => {
+test('builds transaction sync payloads with local account id and remote category id', () => {
   const payload = buildTransactionsPushPayload(
     [
       {
@@ -77,7 +52,6 @@ test('builds transaction sync payloads from remote reference maps', () => {
       },
     ],
     {
-      accountIds: new Map([['acc-cash', REMOTE_ACCOUNT_ID]]),
       categoryIds: new Map([['cat-food', REMOTE_CATEGORY_ID]]),
     }
   );
@@ -87,7 +61,7 @@ test('builds transaction sync payloads from remote reference maps', () => {
       {
         id: REMOTE_TX_ID,
         client_id: 'tx-1',
-        account_id: REMOTE_ACCOUNT_ID,
+        account_id: 'acc-cash',
         category_id: REMOTE_CATEGORY_ID,
         kind: 'expense',
         amount: 3200,
@@ -115,7 +89,6 @@ test('marks deleted local transactions as tombstones in sync payloads', () => {
       },
     ],
     {
-      accountIds: new Map([['acc-cash', REMOTE_ACCOUNT_ID]]),
       categoryIds: new Map([['cat-food', REMOTE_CATEGORY_ID]]),
     }
   );
@@ -125,7 +98,7 @@ test('marks deleted local transactions as tombstones in sync payloads', () => {
       {
         id: undefined,
         client_id: 'tx-2',
-        account_id: REMOTE_ACCOUNT_ID,
+        account_id: 'acc-cash',
         category_id: REMOTE_CATEGORY_ID,
         kind: 'expense',
         amount: 1800,
@@ -139,6 +112,7 @@ test('marks deleted local transactions as tombstones in sync payloads', () => {
 });
 
 test('maps pulled remote ledger data into a local snapshot keyed by client ids', () => {
+  const REMOTE_ACCOUNT_ID = '10000000-0000-4000-8000-000000000012';
   const payload = {
     data: {
       server_time: '2026-05-13T13:00:00.000Z',
@@ -186,8 +160,7 @@ test('maps pulled remote ledger data into a local snapshot keyed by client ids',
     fallbackSyncUpdatedAt: '2026-05-13T10:00:00.000Z',
   });
 
-  assert.equal(snapshot.accounts[0]?.id, 'acc-cash');
-  assert.equal(snapshot.accounts[0]?.remoteId, REMOTE_ACCOUNT_ID);
+  assert.equal(snapshot.implicitLedgerAccountId, 'acc-cash');
   assert.equal(snapshot.categories[0]?.id, 'cat-food');
   assert.equal(snapshot.transactions[0]?.accountId, 'acc-cash');
   assert.equal(snapshot.transactions[0]?.categoryId, 'cat-food');
@@ -195,10 +168,28 @@ test('maps pulled remote ledger data into a local snapshot keyed by client ids',
   assert.equal(snapshot.syncUpdatedAt, '2026-05-13T13:00:00.000Z');
 });
 
+test('uses baseline implicit account id when remote payload has no accounts', () => {
+  const payload = {
+    data: {
+      server_time: '2026-05-13T13:00:00.000Z',
+      categories: [],
+      transactions: [],
+    },
+  };
+
+  const snapshot = buildSnapshotFromRemotePayload(payload, {
+    currentMonth: '2026-05',
+    selectedEntryType: 'expense',
+    fallbackSyncUpdatedAt: '2026-05-13T10:00:00.000Z',
+    baselineImplicitLedgerAccountId: 'acc-wallet',
+  });
+
+  assert.equal(snapshot.implicitLedgerAccountId, 'acc-wallet');
+});
+
 test('extracts remote reference maps and reports whether the ledger has remote data', () => {
   const payload = {
     data: {
-      accounts: [{ id: REMOTE_ACCOUNT_ID, client_id: 'acc-cash' }],
       categories: [{ id: REMOTE_CATEGORY_ID, client_id: 'cat-food' }],
       transactions: [],
     },
@@ -207,6 +198,5 @@ test('extracts remote reference maps and reports whether the ledger has remote d
   const refs = buildRemoteReferenceMaps(payload);
 
   assert.equal(hasRemoteLedgerData(payload), true);
-  assert.equal(refs.accountIds.get('acc-cash'), REMOTE_ACCOUNT_ID);
   assert.equal(refs.categoryIds.get('cat-food'), REMOTE_CATEGORY_ID);
 });

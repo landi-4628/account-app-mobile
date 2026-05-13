@@ -15,8 +15,6 @@ import {
   formatAccountingCurrency,
 } from '@/components/accounting';
 import {
-  buildDetailsSummaryItems,
-  createAccountNameMap,
   createCategoryNameMap,
   getAccountingMonthLabel,
   groupTransactionsByDay,
@@ -33,7 +31,6 @@ export default function DetailsScreen() {
   );
   const {
     actions,
-    accountSummaries,
     availableMonths,
     categories,
     currentMonth,
@@ -44,7 +41,6 @@ export default function DetailsScreen() {
     /** @type {{ id: string, x: number, y: number } | null} */ (null)
   );
   const summaryItems = buildDetailsSummaryItems(currentMonthData.summary);
-  const accountNameMap = useMemo(() => createAccountNameMap(accountSummaries), [accountSummaries]);
   const categoryNameMap = useMemo(() => createCategoryNameMap(categories), [categories]);
   const groupedTransactions = useMemo(
     () => groupTransactionsByDay(currentMonthData.transactions, user.timezone),
@@ -157,7 +153,6 @@ export default function DetailsScreen() {
                     key={transaction.id}
                     transaction={transaction}
                     categoryLabel={categoryNameMap.get(transaction.categoryId) ?? transaction.categoryId}
-                    accountLabel={accountNameMap.get(transaction.accountId) ?? transaction.accountId}
                     timeZone={user.timezone}
                     onLongPress={(item, event) => openTransactionMenu(item.id, event)}
                   />

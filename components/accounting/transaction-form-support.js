@@ -72,9 +72,8 @@ export function getTransactionFormAccountOptions(accountOptions) {
  *   mode?: 'create' | 'edit' | undefined,
  *   initialValues?: TransactionFormInitialValues | undefined,
  *   categoryOptions: TransactionFormOption[],
- *   accountOptions: TransactionFormOption[],
+ *   implicitAccountId: string,
  *   defaultType?: EntryType | undefined,
- *   defaultAccountId?: string | undefined,
  *   defaultSyncStatus?: SyncStatus | undefined,
  *   now?: string | Date | undefined,
  *   timeZoneOffset?: string | undefined,
@@ -85,20 +84,14 @@ export function createTransactionFormDraft({
   mode = 'create',
   initialValues,
   categoryOptions,
-  accountOptions,
+  implicitAccountId,
   defaultType = DEFAULT_ENTRY_TYPE,
-  defaultAccountId,
   now,
   timeZoneOffset = DEFAULT_TIME_ZONE_OFFSET,
 }) {
   const type = initialValues?.type ?? defaultType;
   const filteredCategories = getTransactionFormCategoryOptions(categoryOptions, type);
-  const filteredAccounts = getTransactionFormAccountOptions(accountOptions);
-  const accountId = selectAccountValue(
-    initialValues?.accountId,
-    filteredAccounts,
-    defaultAccountId
-  );
+  const accountId = initialValues?.accountId ?? implicitAccountId ?? '';
   const categoryId = selectCategoryValue(initialValues?.categoryId, filteredCategories);
   const transactionAt = initialValues?.transactionAt ?? now ?? new Date().toISOString();
 
@@ -177,26 +170,6 @@ export function buildTransactionFormSubmitPayload(
     },
     errors,
   };
-}
-
-/**
- * @param {string | undefined} currentValue
- * @param {TransactionFormOption[]} options
- * @param {string | undefined} preferredValue
- * @returns {string}
- */
-function selectAccountValue(currentValue, options, preferredValue) {
-  const values = new Set(options.map((option) => option.value));
-
-  if (currentValue && values.has(currentValue)) {
-    return currentValue;
-  }
-
-  if (preferredValue && values.has(preferredValue)) {
-    return preferredValue;
-  }
-
-  return options[0]?.value ?? '';
 }
 
 /**

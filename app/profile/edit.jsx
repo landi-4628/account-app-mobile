@@ -20,7 +20,7 @@ import { useMockApp } from '@/providers/mock-app-provider';
 
 const copy = {
   title: '\u7f16\u8f91\u4e2a\u4eba\u4fe1\u606f',
-  subtitle: '\u66f4\u65b0\u59d3\u540d\u3001\u90ae\u7bb1\u3001\u8d26\u672c\u548c\u9ed8\u8ba4\u8d26\u6237',
+  subtitle: '\u66f4\u65b0\u59d3\u540d\u3001\u90ae\u7bb1\u3001\u8d26\u672c\u548c\u65f6\u533a',
   unavailableTitle: '\u5f53\u524d\u6682\u4e0d\u652f\u6301\u4fee\u6539\u4e2a\u4eba\u4fe1\u606f',
   unavailableDescription: '\u4f60\u53ef\u4ee5\u5148\u67e5\u770b\u8fd9\u4e9b\u5b57\u6bb5\uff0c\u63a5\u5165\u66f4\u65b0\u80fd\u529b\u540e\u5373\u53ef\u4fdd\u5b58\u3002',
   saveFailed: '\u4fdd\u5b58\u4e2a\u4eba\u4fe1\u606f\u5931\u8d25',
@@ -28,16 +28,12 @@ const copy = {
   email: '\u90ae\u7bb1',
   ledgerName: '\u8d26\u672c\u540d\u79f0',
   timezone: '\u65f6\u533a',
-  defaultAccountId: '\u9ed8\u8ba4\u8d26\u6237 ID',
-  currentDefaultAccount: '\u5f53\u524d\u9ed8\u8ba4\u8d26\u6237',
-  unknown: '\u672a\u627e\u5230',
   cancel: '\u53d6\u6d88',
   save: '\u4fdd\u5b58\u4fee\u6539',
   nameError: '\u8bf7\u8f93\u5165\u59d3\u540d',
   emailError: '\u8bf7\u8f93\u5165\u6709\u6548\u7684\u90ae\u7bb1\u5730\u5740',
   ledgerNameError: '\u8bf7\u8f93\u5165\u8d26\u672c\u540d\u79f0',
   timezoneError: '\u8bf7\u8f93\u5165\u65f6\u533a',
-  defaultAccountIdError: '\u8bf7\u8f93\u5165\u9ed8\u8ba4\u8d26\u6237 ID',
 };
 
 function ActionButton({ label, onPress, disabled, tone = 'primary' }) {
@@ -104,7 +100,7 @@ function createButtonStyles({ colors, spacing, radius, typography }) {
 
 export default function EditProfileScreen() {
   const router = useRouter();
-  const { user, accountSummaries, actions } = useMockApp();
+  const { user, actions } = useMockApp();
   const theme = useAccountingTheme();
   const styles = createStyles(theme);
   const availability = useMemo(() => getActionAvailability(actions), [actions]);
@@ -112,9 +108,6 @@ export default function EditProfileScreen() {
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
   const capabilityNotice = buildCapabilityNotice('profileEdit', availability);
-
-  const defaultAccountName =
-    accountSummaries.find((account) => account.id === draft.defaultAccountId)?.name ?? copy.unknown;
 
   const handleChange = React.useCallback((field, value) => {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -187,17 +180,6 @@ export default function EditProfileScreen() {
             error={errors.timezone ? copy.timezoneError : undefined}
             placeholder="Asia/Shanghai"
           />
-          <FormField
-            label={copy.defaultAccountId}
-            value={draft.defaultAccountId}
-            onChangeText={(value) => handleChange('defaultAccountId', value)}
-            error={errors.defaultAccountId ? copy.defaultAccountIdError : undefined}
-            placeholder="acc-wechat"
-          />
-          <View style={styles.inlineNote}>
-            <Text style={styles.inlineNoteLabel}>{copy.currentDefaultAccount}</Text>
-            <Text style={styles.inlineNoteValue}>{defaultAccountName}</Text>
-          </View>
           <View style={styles.actions}>
             <ActionButton label={copy.cancel} tone="secondary" onPress={() => router.back()} />
             <ActionButton
@@ -216,18 +198,6 @@ function createStyles({ colors, spacing, typography }) {
   return StyleSheet.create({
     card: {
       gap: spacing.md,
-    },
-    inlineNote: {
-      gap: 4,
-    },
-    inlineNoteLabel: {
-      fontSize: typography.caption,
-      color: colors.textMuted,
-    },
-    inlineNoteValue: {
-      fontSize: typography.body,
-      fontWeight: '600',
-      color: colors.text,
     },
     actions: {
       flexDirection: 'row',

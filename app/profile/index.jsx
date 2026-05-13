@@ -56,14 +56,12 @@ function sectionTitleStyle(theme) {
 
 export default function ProfileHubScreen() {
   const router = useRouter();
-  const { user, accountSummaries, actions, syncSummary, autoSyncEnabled } = useMockApp();
+  const { user, actions, syncSummary, autoSyncEnabled } = useMockApp();
   const theme = useAccountingTheme();
   const styles = createStyles(theme);
   const availability = useMemo(() => getActionAvailability(actions), [actions]);
-  const activeAccountCount = accountSummaries.filter((account) => account.isActive).length;
   const sections = buildProfileHubSections({
     availability,
-    activeAccountCount,
   });
 
   const capabilityNotice =

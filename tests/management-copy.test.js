@@ -5,10 +5,6 @@ import path from 'node:path';
 
 const checks = [
   {
-    file: 'app/accounts/index.jsx',
-    forbidden: ['Add account', 'New account', 'Existing accounts'],
-  },
-  {
     file: 'app/categories/index.jsx',
     forbidden: ['Add category', 'New category', 'Expense categories', 'Income categories'],
   },

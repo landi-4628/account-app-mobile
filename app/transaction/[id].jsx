@@ -3,6 +3,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 
 import { AccountingScreen, EmptyState, TransactionForm } from '@/components/accounting';
 import { accountingCopy } from '@/constants/accounting-copy';
+import { resolveImplicitAccountId } from '@/lib/resolve-implicit-account-id.js';
 import { useMockApp } from '@/providers/mock-app-provider';
 
 const DEFAULT_TIME_ZONE_OFFSET = '+08:00';
@@ -16,22 +17,17 @@ function buildCategoryOptions(categories) {
   }));
 }
 
-function buildAccountOptions(accounts) {
-  return accounts.map((account) => ({
-    value: account.id,
-    label: account.name,
-    isActive: account.isActive,
-  }));
-}
-
 export default function EditTransactionScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
-  const { actions, accounts, categories, selectors } = useMockApp();
+  const { actions, categories, implicitLedgerAccountId, selectors, user } = useMockApp();
   const transactionId = Array.isArray(id) ? id[0] : id;
   const transaction = transactionId ? selectors.getTransactionById(transactionId) : null;
   const categoryOptions = useMemo(() => buildCategoryOptions(categories), [categories]);
-  const accountOptions = useMemo(() => buildAccountOptions(accounts), [accounts]);
+  const implicitAccountId = useMemo(
+    () => resolveImplicitAccountId(implicitLedgerAccountId, user.defaultAccountId),
+    [implicitLedgerAccountId, user.defaultAccountId]
+  );
 
   const handleSubmit = React.useCallback(
     (values) => {
@@ -85,12 +81,11 @@ export default function EditTransactionScreen() {
       <Stack.Screen options={{ title: accountingCopy.actions.edit }} />
       <AccountingScreen>
         <TransactionForm
-          accountOptions={accountOptions}
           categoryOptions={categoryOptions}
+          implicitAccountId={implicitAccountId}
           defaultSyncStatus="pending"
           initialValues={transaction}
           mode="edit"
-          onCreateAccount={actions.addAccount}
           onCreateCategory={actions.addCategory}
           submitLabel={accountingCopy.actions.save}
           timeZoneOffset={DEFAULT_TIME_ZONE_OFFSET}

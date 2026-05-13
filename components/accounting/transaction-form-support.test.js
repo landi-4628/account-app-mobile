@@ -9,12 +9,6 @@ import {
   getTransactionFormCategoryOptions,
 } from './transaction-form-support.js';
 
-const accountOptions = [
-  { value: 'acc-cash', label: 'Cash', isActive: true },
-  { value: 'acc-bank', label: 'Bank', isActive: false },
-  { value: 'acc-wechat', label: 'WeChat', isActive: true },
-];
-
 const categoryOptions = [
   { value: 'cat-food', label: 'Food', type: 'expense', isActive: true },
   { value: 'cat-commute', label: 'Commute', type: 'expense', isActive: true },
@@ -36,10 +30,9 @@ test('creates a create-mode draft with filtered defaults and formatted inputs', 
   assert.deepEqual(
     createTransactionFormDraft({
       mode: 'create',
-      accountOptions,
       categoryOptions,
+      implicitAccountId: 'acc-wechat',
       defaultType: 'income',
-      defaultAccountId: 'acc-wechat',
       now: '2026-05-12T09:45:00Z',
       timeZoneOffset: '+08:00',
     }),
@@ -59,8 +52,8 @@ test('creates an edit-mode draft from an existing transaction payload', () => {
   assert.deepEqual(
     createTransactionFormDraft({
       mode: 'edit',
-      accountOptions,
       categoryOptions,
+      implicitAccountId: 'acc-wechat',
       initialValues: {
         type: 'expense',
         amount: 2530,

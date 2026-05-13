@@ -3,7 +3,6 @@ import { accountingCategoryLabels, accountingCopy, accountingMonthLabels } from 
 import { formatAccountingMonth } from './helpers.js';
 
 /**
- * @typedef {import('@/types/accounting').LedgerAccount} LedgerAccount
  * @typedef {import('@/types/accounting').LedgerCategory} LedgerCategory
  * @typedef {import('@/types/accounting').TransactionRecord} TransactionRecord
  */
@@ -20,14 +19,6 @@ const dayLabelFormatter = new Intl.DateTimeFormat('zh-CN', {
  */
 export function getAccountingMonthLabel(month) {
   return accountingMonthLabels[month] ?? formatAccountingMonth(month);
-}
-
-/**
- * @param {LedgerAccount[]} accounts
- * @returns {Map<string, string>}
- */
-export function createAccountNameMap(accounts) {
-  return new Map(accounts.map((account) => [account.id, account.name]));
 }
 
 /**

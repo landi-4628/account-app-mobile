@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  buildAccountManagementViewModel,
   buildCapabilityNotice,
   buildAuthFormDraft,
   buildCategoryManagementViewModel,
@@ -15,46 +14,34 @@ import {
 
 test('detects currently available and future provider actions', () => {
   assert.deepEqual(getActionAvailability({}), {
-    canCreateAccounts: false,
     canCreateCategories: false,
     canChangePassword: false,
-    canEditAccounts: false,
     canEditCategories: false,
-    canDeleteAccounts: false,
     canDeleteCategories: false,
     canLogin: false,
     canRegister: false,
-    canToggleAccounts: false,
     canToggleCategories: false,
     canUpdateProfile: false,
   });
 
   assert.deepEqual(
     getActionAvailability({
-      addAccount() {},
       addCategory() {},
       changePassword() {},
       login() {},
       register() {},
-      toggleAccountActive() {},
       toggleCategoryActive() {},
-      updateAccount() {},
       updateCategory() {},
-      deleteAccount() {},
       deleteCategory() {},
       updateProfile() {},
     }),
     {
-      canCreateAccounts: true,
       canCreateCategories: true,
       canChangePassword: true,
-      canEditAccounts: true,
       canEditCategories: true,
-      canDeleteAccounts: true,
       canDeleteCategories: true,
       canLogin: true,
       canRegister: true,
-      canToggleAccounts: true,
       canToggleCategories: true,
       canUpdateProfile: true,
     }
@@ -73,15 +60,15 @@ test('builds defensive capability notices for unavailable actions', () => {
 
   assert.deepEqual(
     buildCapabilityNotice(
-      'accountsCreate',
+      'categoriesCreate',
       getActionAvailability({
-        updateAccount() {},
+        updateCategory() {},
       })
     ),
     {
       tone: 'warning',
-      title: 'accountsCreateUnavailable',
-      description: 'accountsCreateUnavailableDescription',
+      title: 'categoriesCreateUnavailable',
+      description: 'categoriesCreateUnavailableDescription',
     }
   );
 
@@ -97,38 +84,12 @@ test('builds defensive capability notices for unavailable actions', () => {
 
   assert.equal(
     buildCapabilityNotice(
-      'accountsManage',
+      'categoriesManage',
       getActionAvailability({
-        toggleAccountActive() {},
+        toggleCategoryActive() {},
       })
     ),
     null
-  );
-});
-
-test('builds account rows with active accounts first and stable names', () => {
-  const viewModel = buildAccountManagementViewModel(
-    [
-      { id: 'acc-3', name: 'wallet', type: 'cash', isActive: false },
-      { id: 'acc-1', name: 'Bank', type: 'bank', isActive: true },
-      { id: 'acc-2', name: 'Alipay', type: 'alipay', isActive: true },
-    ],
-    {}
-  );
-
-  assert.equal(viewModel.canCreate, true);
-  assert.equal(viewModel.canManageExisting, false);
-  assert.deepEqual(
-    viewModel.rows.map((row) => ({
-      id: row.id,
-      isActive: row.isActive,
-      manageMode: row.manageMode,
-    })),
-    [
-      { id: 'acc-2', isActive: true, manageMode: 'read-only' },
-      { id: 'acc-1', isActive: true, manageMode: 'read-only' },
-      { id: 'acc-3', isActive: false, manageMode: 'read-only' },
-    ]
   );
 });
 
@@ -204,7 +165,6 @@ test('builds profile drafts from provider user data and validates edits', () => 
       defaultAccountId: 'acc-1',
     }),
     {
-      defaultAccountId: 'acc-1',
       email: 'demo@example.com',
       ledgerName: 'Household',
       name: 'Demo',
@@ -218,10 +178,8 @@ test('builds profile drafts from provider user data and validates edits', () => 
       email: 'demo',
       ledgerName: ' ',
       timezone: '',
-      defaultAccountId: '',
     }),
     {
-      defaultAccountId: 'defaultAccountId',
       email: 'email',
       ledgerName: 'ledgerName',
       name: 'name',

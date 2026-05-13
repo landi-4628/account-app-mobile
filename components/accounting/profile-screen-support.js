@@ -6,14 +6,14 @@ function buildStatusBadge(isAvailable) {
   return isAvailable ? null : { label: '稍后开放', tone: 'warning' };
 }
 
-export function buildProfileHubSections({ availability, activeAccountCount }) {
+export function buildProfileHubSections({ availability }) {
   return [
     {
       title: '个人资料',
       rows: [
         {
           title: '编辑个人信息',
-          subtitle: '姓名、邮箱、账本、时区和默认账户',
+          subtitle: '姓名、邮箱、账本和时区',
           meta: buildStatusMeta(availability.canUpdateProfile),
           badge: buildStatusBadge(availability.canUpdateProfile),
           disabled: !availability.canUpdateProfile,
@@ -54,14 +54,6 @@ export function buildProfileHubSections({ availability, activeAccountCount }) {
       title: '账本与分类',
       rows: [
         {
-          title: '账户管理',
-          subtitle: `已启用 ${activeAccountCount} 个账户`,
-          meta: '进入',
-          badge: null,
-          disabled: false,
-          href: '/accounts',
-        },
-        {
           title: '分类管理',
           subtitle: '查看收入和支出分类',
           meta: '进入',
@@ -82,9 +74,9 @@ export function buildProfileOverviewLinks() {
       href: '/profile',
     },
     {
-      title: '账户与分类',
-      subtitle: '管理账户，查看收入和支出分类',
-      href: '/accounts',
+      title: '分类管理',
+      subtitle: '查看收入和支出分类',
+      href: '/categories',
     },
   ];
 }

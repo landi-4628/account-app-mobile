@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import {
   createInitialMockAppState,
   mockAppReducer,
-  selectAccountSummaries,
   selectCurrentMonthData,
   selectSyncSummary,
 } from './mock-app-state.js';
@@ -13,31 +12,19 @@ import {
   selectPersistedCustomDefinitions,
 } from './mock-app-persistence-support.js';
 
-test('builds current month and account summaries from the mock foundations', () => {
+test('builds current month summary and sync state from the mock foundations', () => {
   const state = createInitialMockAppState();
   const monthData = selectCurrentMonthData(state);
-  const accountSummaries = selectAccountSummaries(state);
   const syncSummary = selectSyncSummary(state);
 
   assert.equal(state.currentMonth, '2026-05');
+  assert.equal(state.implicitLedgerAccountId, state.user.defaultAccountId);
   assert.equal(monthData.summary.income, 1460000);
   assert.equal(monthData.summary.expense, 19480);
   assert.equal(monthData.summary.balance, 1440520);
   assert.equal(monthData.summary.pendingCount, 1);
   assert.equal(monthData.summary.failedCount, 1);
   assert.equal(monthData.transactions.length, 6);
-  assert.deepEqual(
-    accountSummaries.map((account) => ({
-      id: account.id,
-      currentBalance: account.currentBalance,
-    })),
-    [
-      { id: 'acc-cash', currentBalance: 75620 },
-      { id: 'acc-bank', currentBalance: 1543120 },
-      { id: 'acc-alipay', currentBalance: 118300 },
-      { id: 'acc-wechat', currentBalance: 90300 },
-    ]
-  );
   assert.deepEqual(syncSummary, {
     status: 'failed',
     pendingCount: 1,
@@ -94,7 +81,7 @@ test('merges April seeded baseline with the first live transaction instead of re
   assert.equal(monthData.transactions[0].id, 'tx-april-test-book');
 });
 
-test('adds a transaction and keeps month, account, and sync summaries aligned', () => {
+test('adds a transaction and keeps month and sync summaries aligned', () => {
   const initialState = createInitialMockAppState();
   const state = mockAppReducer(initialState, {
     type: 'addTransaction',
@@ -110,19 +97,17 @@ test('adds a transaction and keeps month, account, and sync summaries aligned', 
     },
   });
   const monthData = selectCurrentMonthData(state);
-  const cashAccount = selectAccountSummaries(state).find((account) => account.id === 'acc-cash');
   const syncSummary = selectSyncSummary(state);
 
   assert.equal(monthData.transactions[0].id, 'tx-test-book');
   assert.equal(monthData.summary.expense, 24480);
   assert.equal(monthData.summary.balance, 1435520);
   assert.equal(monthData.summary.pendingCount, 2);
-  assert.equal(cashAccount?.currentBalance, 70620);
   assert.equal(syncSummary.pendingCount, 2);
   assert.equal(syncSummary.failedCount, 1);
 });
 
-test('updates a transaction in place and keeps month, account, and sync summaries aligned', () => {
+test('updates a transaction in place and keeps month and sync summaries aligned', () => {
   const initialState = createInitialMockAppState();
   const state = mockAppReducer(initialState, {
     type: 'updateTransaction',
@@ -135,7 +120,6 @@ test('updates a transaction in place and keeps month, account, and sync summarie
     },
   });
   const monthData = selectCurrentMonthData(state);
-  const wechatAccount = selectAccountSummaries(state).find((account) => account.id === 'acc-wechat');
   const syncSummary = selectSyncSummary(state);
   const transaction = state.transactions.find((item) => item.id === 'tx-coffee');
 
@@ -147,13 +131,12 @@ test('updates a transaction in place and keeps month, account, and sync summarie
   assert.equal(monthData.summary.balance, 1439720);
   assert.equal(monthData.summary.pendingCount, 2);
   assert.equal(monthData.summary.failedCount, 0);
-  assert.equal(wechatAccount?.currentBalance, 89500);
   assert.equal(syncSummary.status, 'pending');
   assert.equal(syncSummary.pendingCount, 2);
   assert.equal(syncSummary.failedCount, 0);
 });
 
-test('moves an edited transaction across month and account boundaries and keeps summaries aligned', () => {
+test('moves an edited transaction across month boundaries and keeps summaries aligned', () => {
   const initialState = createInitialMockAppState();
   const state = mockAppReducer(initialState, {
     type: 'updateTransaction',
@@ -168,9 +151,6 @@ test('moves an edited transaction across month and account boundaries and keeps 
     },
   });
   const monthData = selectCurrentMonthData(state);
-  const accountSummaries = selectAccountSummaries(state);
-  const cashAccount = accountSummaries.find((account) => account.id === 'acc-cash');
-  const wechatAccount = accountSummaries.find((account) => account.id === 'acc-wechat');
   const syncSummary = selectSyncSummary(state);
   const transaction = state.transactions.find((item) => item.id === 'tx-coffee');
 
@@ -189,8 +169,6 @@ test('moves an edited transaction across month and account boundaries and keeps 
     { categoryId: 'cat-food', amount: 101200, percent: 35 },
     { categoryId: 'cat-commute', amount: 66000, percent: 23 },
   ]);
-  assert.equal(cashAccount?.currentBalance, 70620);
-  assert.equal(wechatAccount?.currentBalance, 93100);
   assert.equal(syncSummary.status, 'pending');
   assert.equal(syncSummary.pendingCount, 2);
   assert.equal(syncSummary.failedCount, 0);
@@ -203,7 +181,6 @@ test('deletes a transaction and updates derived balances and counts', () => {
     transactionId: 'tx-coffee',
   });
   const monthData = selectCurrentMonthData(state);
-  const wechatAccount = selectAccountSummaries(state).find((account) => account.id === 'acc-wechat');
   const syncSummary = selectSyncSummary(state);
   const deletedTransaction = state.transactions.find((item) => item.id === 'tx-coffee');
 
@@ -214,7 +191,6 @@ test('deletes a transaction and updates derived balances and counts', () => {
   assert.equal(monthData.transactions.some((item) => item.id === 'tx-coffee'), false);
   assert.equal(deletedTransaction?.syncStatus, 'pending');
   assert.equal(typeof deletedTransaction?.deletedAt, 'string');
-  assert.equal(wechatAccount?.currentBalance, 93100);
   assert.equal(syncSummary.status, 'pending');
   assert.equal(syncSummary.pendingCount, 1);
   assert.equal(syncSummary.failedCount, 0);
@@ -255,38 +231,6 @@ test('adds a custom category and keeps it active in the selected type list', () 
   assert.equal(state.categories.at(-1)?.isCustom, true);
 });
 
-test('adds a custom account with zero starting balance and includes it in account summaries', () => {
-  const initialState = createInitialMockAppState();
-  const state = mockAppReducer(initialState, {
-    type: 'addAccount',
-    account: {
-      id: 'acc-custom-wallet',
-      name: 'Wallet',
-      type: 'cash',
-      initialBalance: 0,
-      currentBalance: 0,
-      isActive: true,
-      isCustom: true,
-    },
-  });
-  const account = selectAccountSummaries(state).find((item) => item.id === 'acc-custom-wallet');
-
-  assert.equal(account?.name, 'Wallet');
-  assert.equal(account?.type, 'cash');
-  assert.equal(account?.currentBalance, 0);
-});
-
-test('toggles an account active state in place', () => {
-  const initialState = createInitialMockAppState();
-  const state = mockAppReducer(initialState, {
-    type: 'toggleAccountActive',
-    accountId: 'acc-cash',
-    isActive: false,
-  });
-
-  assert.equal(state.accounts.find((item) => item.id === 'acc-cash')?.isActive, false);
-});
-
 test('toggles a category active state in place', () => {
   const initialState = createInitialMockAppState();
   const state = mockAppReducer(initialState, {
@@ -298,31 +242,17 @@ test('toggles a category active state in place', () => {
   assert.equal(state.categories.find((item) => item.id === 'cat-food')?.isActive, false);
 });
 
-test('selects only custom accounts and categories for persistence', () => {
-  const state = mockAppReducer(
-    mockAppReducer(createInitialMockAppState(), {
-      type: 'addCategory',
-      category: {
-        id: 'cat-custom-snacks',
-        name: 'Snacks',
-        type: 'expense',
-        isActive: true,
-        isCustom: true,
-      },
-    }),
-    {
-      type: 'addAccount',
-      account: {
-        id: 'acc-custom-wallet',
-        name: 'Wallet',
-        type: 'cash',
-        initialBalance: 0,
-        currentBalance: 0,
-        isActive: true,
-        isCustom: true,
-      },
-    }
-  );
+test('selects only custom categories for persistence', () => {
+  const state = mockAppReducer(createInitialMockAppState(), {
+    type: 'addCategory',
+    category: {
+      id: 'cat-custom-snacks',
+      name: 'Snacks',
+      type: 'expense',
+      isActive: true,
+      isCustom: true,
+    },
+  });
 
   assert.deepEqual(selectPersistedCustomDefinitions(state), {
     categories: [
@@ -334,17 +264,7 @@ test('selects only custom accounts and categories for persistence', () => {
         isCustom: true,
       },
     ],
-    accounts: [
-      {
-        id: 'acc-custom-wallet',
-        name: 'Wallet',
-        type: 'cash',
-        initialBalance: 0,
-        currentBalance: 0,
-        isActive: true,
-        isCustom: true,
-      },
-    ],
+    accounts: [],
   });
 });
 
@@ -367,32 +287,11 @@ test('merges persisted custom definitions without duplicating seeded ids', () =>
         isCustom: true,
       },
     ],
-    accounts: [
-      {
-        id: 'acc-cash',
-        name: 'Duplicate Seed',
-        type: 'cash',
-        initialBalance: 0,
-        currentBalance: 0,
-        isActive: true,
-        isCustom: true,
-      },
-      {
-        id: 'acc-custom-wallet',
-        name: 'Wallet',
-        type: 'cash',
-        initialBalance: 0,
-        currentBalance: 0,
-        isActive: true,
-        isCustom: true,
-      },
-    ],
   });
 
   assert.equal(merged.categories.filter((item) => item.id === 'cat-food').length, 1);
-  assert.equal(merged.accounts.filter((item) => item.id === 'acc-cash').length, 1);
+  assert.equal(merged.implicitLedgerAccountId, initialState.implicitLedgerAccountId);
   assert.equal(merged.categories.at(-1)?.id, 'cat-custom-snacks');
-  assert.equal(merged.accounts.at(-1)?.id, 'acc-custom-wallet');
 });
 
 test('hydrates a persisted snapshot into state while keeping seeded foundations', () => {
@@ -402,6 +301,7 @@ test('hydrates a persisted snapshot into state while keeping seeded foundations'
     snapshot: {
       currentMonth: '2026-04',
       selectedEntryType: 'income',
+      implicitLedgerAccountId: 'acc-bank',
       transactions: [
         {
           id: 'tx-restored',
@@ -413,18 +313,6 @@ test('hydrates a persisted snapshot into state while keeping seeded foundations'
           transactionAt: '2026-04-22T09:00:00+08:00',
           syncStatus: 'pending',
           deletedAt: '2026-05-13T11:05:00+08:00',
-        },
-      ],
-      accounts: [
-        ...initialState.accounts,
-        {
-          id: 'acc-custom-wallet',
-          name: 'Wallet',
-          type: 'cash',
-          initialBalance: 0,
-          currentBalance: 0,
-          isActive: true,
-          isCustom: true,
         },
       ],
       categories: [
@@ -443,6 +331,7 @@ test('hydrates a persisted snapshot into state while keeping seeded foundations'
 
   assert.equal(state.currentMonth, '2026-04');
   assert.equal(state.selectedEntryType, 'income');
+  assert.equal(state.implicitLedgerAccountId, 'acc-bank');
   assert.deepEqual(state.transactions, [
     {
       id: 'tx-restored',
@@ -456,7 +345,6 @@ test('hydrates a persisted snapshot into state while keeping seeded foundations'
       deletedAt: '2026-05-13T11:05:00+08:00',
     },
   ]);
-  assert.equal(state.accounts.at(-1)?.id, 'acc-custom-wallet');
   assert.equal(state.categories.at(-1)?.id, 'cat-custom-bonus');
   assert.equal(state.syncUpdatedAt, '2026-05-13T11:00:00+08:00');
   assert.deepEqual(state.seedTransactions, initialState.seedTransactions);

@@ -16,6 +16,7 @@ test('selects the minimal persisted snapshot from full app state', () => {
     currentMonth: '2026-04',
     selectedEntryType: 'income',
     quickAddOpen: true,
+    implicitLedgerAccountId: 'acc-runtime',
     syncUpdatedAt: '2026-05-13T10:00:00+08:00',
     transactions: [
       {
@@ -28,18 +29,6 @@ test('selects the minimal persisted snapshot from full app state', () => {
         transactionAt: '2026-04-12T13:00:00+08:00',
         syncStatus: 'pending',
         deletedAt: '2026-05-13T10:05:00+08:00',
-      },
-    ],
-    accounts: [
-      ...initialState.accounts,
-      {
-        id: 'acc-runtime-wallet',
-        name: 'Wallet',
-        type: 'cash',
-        initialBalance: 0,
-        currentBalance: 0,
-        isActive: true,
-        isCustom: true,
       },
     ],
     categories: [
@@ -57,8 +46,8 @@ test('selects the minimal persisted snapshot from full app state', () => {
   assert.deepEqual(selectMockAppSnapshot(state), {
     currentMonth: '2026-04',
     selectedEntryType: 'income',
+    implicitLedgerAccountId: 'acc-runtime',
     transactions: state.transactions,
-    accounts: state.accounts,
     categories: state.categories,
     syncUpdatedAt: '2026-05-13T10:00:00+08:00',
   });
@@ -68,8 +57,8 @@ test('parses a valid raw snapshot and returns null for missing top-level fields'
   const validRaw = JSON.stringify({
     currentMonth: '2026-05',
     selectedEntryType: 'expense',
+    implicitLedgerAccountId: 'acc-wechat',
     transactions: [],
-    accounts: [],
     categories: [],
     syncUpdatedAt: '2026-05-13T10:00:00+08:00',
   });
@@ -77,8 +66,8 @@ test('parses a valid raw snapshot and returns null for missing top-level fields'
   assert.deepEqual(parseMockAppSnapshot(validRaw), {
     currentMonth: '2026-05',
     selectedEntryType: 'expense',
+    implicitLedgerAccountId: 'acc-wechat',
     transactions: [],
-    accounts: [],
     categories: [],
     syncUpdatedAt: '2026-05-13T10:00:00+08:00',
   });
@@ -88,12 +77,36 @@ test('parses a valid raw snapshot and returns null for missing top-level fields'
         currentMonth: '2026-05',
         selectedEntryType: 'expense',
         transactions: [],
-        accounts: [],
+        categories: [],
         syncUpdatedAt: '2026-05-13T10:00:00+08:00',
       })
     ),
     null
   );
+});
+
+test('migrates legacy snapshots that stored an accounts array', () => {
+  const legacy = JSON.stringify({
+    currentMonth: '2026-05',
+    selectedEntryType: 'expense',
+    transactions: [],
+    accounts: [
+      {
+        id: 'acc-legacy',
+        name: 'Legacy',
+        type: 'cash',
+        initialBalance: 0,
+        currentBalance: 0,
+        isActive: true,
+        isCustom: false,
+      },
+    ],
+    categories: [],
+    syncUpdatedAt: '2026-05-13T10:00:00+08:00',
+  });
+
+  const snapshot = parseMockAppSnapshot(legacy);
+  assert.equal(snapshot?.implicitLedgerAccountId, 'acc-legacy');
 });
 
 test('compacts deleted transactions out of the persisted snapshot view', () => {
@@ -145,6 +158,7 @@ test('returns null when any persisted array contains an invalid item', () => {
       JSON.stringify({
         currentMonth: '2026-05',
         selectedEntryType: 'expense',
+        implicitLedgerAccountId: 'acc-cash',
         transactions: [
           {
             id: 'tx-invalid',
@@ -157,7 +171,6 @@ test('returns null when any persisted array contains an invalid item', () => {
             syncStatus: 'pending',
           },
         ],
-        accounts: [],
         categories: [],
         syncUpdatedAt: '2026-05-13T10:00:00+08:00',
       })
@@ -193,8 +206,8 @@ test('returns null when any persisted array contains an invalid item', () => {
       JSON.stringify({
         currentMonth: '2026-05',
         selectedEntryType: 'expense',
+        implicitLedgerAccountId: 'acc-cash',
         transactions: [],
-        accounts: [],
         categories: [
           {
             id: 'cat-invalid',
@@ -215,6 +228,7 @@ test('applies a valid snapshot onto initial state without replacing seeded found
   const snapshot = {
     currentMonth: '2026-04',
     selectedEntryType: 'income',
+    implicitLedgerAccountId: 'acc-bank',
     transactions: [
       {
         id: 'tx-restored',
@@ -226,18 +240,6 @@ test('applies a valid snapshot onto initial state without replacing seeded found
         transactionAt: '2026-04-15T09:00:00+08:00',
         syncStatus: 'synced',
         deletedAt: null,
-      },
-    ],
-    accounts: [
-      ...initialState.accounts,
-      {
-        id: 'acc-restored-wallet',
-        name: 'Wallet',
-        type: 'cash',
-        initialBalance: 0,
-        currentBalance: 0,
-        isActive: true,
-        isCustom: true,
       },
     ],
     categories: [
@@ -259,8 +261,8 @@ test('applies a valid snapshot onto initial state without replacing seeded found
   assert.equal(restoredState.currentMonth, '2026-04');
   assert.equal(restoredState.selectedEntryType, 'income');
   assert.equal(restoredState.quickAddOpen, false);
+  assert.equal(restoredState.implicitLedgerAccountId, 'acc-bank');
   assert.deepEqual(restoredState.transactions, snapshot.transactions);
-  assert.deepEqual(restoredState.accounts, snapshot.accounts);
   assert.deepEqual(restoredState.categories, snapshot.categories);
   assert.equal(restoredState.syncUpdatedAt, '2026-05-13T11:00:00+08:00');
   assert.deepEqual(restoredState.seedTransactions, initialState.seedTransactions);

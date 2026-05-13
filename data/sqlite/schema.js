@@ -12,20 +12,6 @@ export const SQLITE_TABLE_DEFINITIONS = [
     );`,
   },
   {
-    name: 'accounts',
-    sql: `CREATE TABLE IF NOT EXISTS accounts (
-      id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL,
-      type TEXT NOT NULL,
-      initial_balance REAL NOT NULL DEFAULT 0,
-      current_balance REAL NOT NULL DEFAULT 0,
-      is_active INTEGER NOT NULL DEFAULT 1,
-      is_custom INTEGER NOT NULL DEFAULT 0,
-      updated_at TEXT NOT NULL,
-      deleted_at TEXT
-    );`,
-  },
-  {
     name: 'categories',
     sql: `CREATE TABLE IF NOT EXISTS categories (
       id TEXT PRIMARY KEY NOT NULL,
@@ -67,4 +53,4 @@ export const SQLITE_TABLE_DEFINITIONS = [
   },
 ];
 
-export const SQLITE_SCHEMA_VERSION = 3;
+export const SQLITE_SCHEMA_VERSION = 4;

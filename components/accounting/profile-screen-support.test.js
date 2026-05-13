@@ -10,7 +10,6 @@ import {
 
 test('builds chinese app sections for the profile hub', () => {
   const sections = buildProfileHubSections({
-    activeAccountCount: 3,
     availability: {
       canChangePassword: false,
       canLogin: true,
@@ -68,12 +67,6 @@ test('builds chinese app sections for the profile hub', () => {
         title: '账本与分类',
         rows: [
           {
-            title: '账户管理',
-            meta: '进入',
-            badge: null,
-            disabled: false,
-          },
-          {
             title: '分类管理',
             meta: '进入',
             badge: null,
@@ -93,9 +86,9 @@ test('builds chinese overview links for the my page', () => {
       href: '/profile',
     },
     {
-      title: '账户与分类',
-      subtitle: '管理账户，查看收入和支出分类',
-      href: '/accounts',
+      title: '分类管理',
+      subtitle: '查看收入和支出分类',
+      href: '/categories',
     },
   ]);
 });

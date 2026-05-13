@@ -11,7 +11,6 @@ import {
 import {
   buildTransactionFormSubmitPayload,
   createTransactionFormDraft,
-  getTransactionFormAccountOptions,
   getTransactionFormCategoryOptions,
 } from './transaction-form-support.js';
 import { getTransactionFormContainerStyle } from './transaction-form-layout-support.js';
@@ -20,7 +19,6 @@ import { useAccountingTheme } from './use-accounting-theme.js';
 /** @typedef {import('./transaction-form-support.js').TransactionFormErrors} TransactionFormErrors */
 /** @typedef {import('./transaction-form-support.js').TransactionFormInitialValues} TransactionFormInitialValues */
 /** @typedef {import('./transaction-form-support.js').TransactionFormOption} TransactionFormOption */
-/** @typedef {import('@/types/accounting').AccountType} AccountType */
 /** @typedef {import('@/types/accounting').EntryType} EntryType */
 /** @typedef {import('@/types/accounting').SyncStatus} SyncStatus */
 /** @typedef {import('./use-accounting-theme.js').AccountingThemeColors} AccountingThemeColors */
@@ -37,37 +35,23 @@ const entryTypeOptions = [
 
 const inlineCopy = {
   addCategory: '\u65b0\u589e\u5206\u7c7b',
-  addAccount: '\u65b0\u589e\u8d26\u6237',
   cancel: '\u53d6\u6d88',
   categoryName: '\u5206\u7c7b\u540d\u79f0',
-  accountName: '\u8d26\u6237\u540d\u79f0',
-  accountType: '\u8d26\u6237\u7c7b\u578b',
   categoryPlaceholder: '\u8f93\u5165\u5206\u7c7b\u540d\u79f0',
-  accountPlaceholder: '\u8f93\u5165\u8d26\u6237\u540d\u79f0',
   duplicateCategory: '\u5df2\u5b58\u5728\u540c\u540d\u5206\u7c7b',
-  duplicateAccount: '\u5df2\u5b58\u5728\u540c\u540d\u8d26\u6237',
   requiredName: '\u8bf7\u8f93\u5165\u540d\u79f0',
   chooseDate: '\u9009\u62e9\u65e5\u671f',
   calendarConfirm: '\u786e\u5b9a',
   calendarWeekdays: ['\u65e5', '\u4e00', '\u4e8c', '\u4e09', '\u56db', '\u4e94', '\u516d'],
 };
 
-/** @type {Array<{ value: AccountType, label: string }>} */
-const accountTypeOptions = [
-  { value: 'cash', label: accountingCopy.accountTypes.cash },
-  { value: 'bank', label: accountingCopy.accountTypes.bank },
-  { value: 'alipay', label: accountingCopy.accountTypes.alipay },
-  { value: 'wechat', label: accountingCopy.accountTypes.wechat },
-];
-
 /**
  * @param {{
  *   mode?: 'create' | 'edit' | undefined,
  *   initialValues?: TransactionFormInitialValues | undefined,
  *   categoryOptions: TransactionFormOption[],
- *   accountOptions: TransactionFormOption[],
+ *   implicitAccountId: string,
  *   defaultType?: EntryType | undefined,
- *   defaultAccountId?: string | undefined,
  *   defaultSyncStatus?: SyncStatus | undefined,
  *   timeZoneOffset?: string | undefined,
  *   submitLabel?: string | undefined,
@@ -84,7 +68,6 @@ const accountTypeOptions = [
  *     syncStatus: SyncStatus,
  *   }) => void,
  *   onCreateCategory?: ((input: { name: string, type: EntryType }) => { id: string } | null | undefined) | undefined,
- *   onCreateAccount?: ((input: { name: string, type: AccountType }) => { id: string } | null | undefined) | undefined,
  *   onDelete?: (() => void) | undefined,
  * }} props
  */
@@ -92,9 +75,8 @@ export function TransactionForm({
   mode = 'create',
   initialValues,
   categoryOptions,
-  accountOptions,
+  implicitAccountId,
   defaultType = 'expense',
-  defaultAccountId,
   defaultSyncStatus = 'pending',
   timeZoneOffset = '+00:00',
   submitLabel,
@@ -103,7 +85,6 @@ export function TransactionForm({
   busy = false,
   onSubmit,
   onCreateCategory,
-  onCreateAccount,
   onDelete,
 }) {
   const { colors, spacing, radius, typography, shadow } = useAccountingTheme();
@@ -111,19 +92,14 @@ export function TransactionForm({
     () => createStyles(colors, spacing, radius, typography, shadow.card),
     [colors, spacing, radius, typography, shadow]
   );
-  const filteredAccounts = useMemo(
-    () => getTransactionFormAccountOptions(accountOptions),
-    [accountOptions]
-  );
-  const latestOptionsRef = React.useRef({ accountOptions, categoryOptions });
+  const latestCategoryOptionsRef = React.useRef(categoryOptions);
   const [draft, setDraft] = useState(() =>
     createTransactionFormDraft({
       mode,
       initialValues,
       categoryOptions,
-      accountOptions,
+      implicitAccountId,
       defaultType,
-      defaultAccountId,
       defaultSyncStatus,
       timeZoneOffset,
     })
@@ -132,10 +108,6 @@ export function TransactionForm({
   const [categoryComposerOpen, setCategoryComposerOpen] = useState(false);
   const [categoryNameInput, setCategoryNameInput] = useState('');
   const [categoryCreateError, setCategoryCreateError] = useState('');
-  const [accountComposerOpen, setAccountComposerOpen] = useState(false);
-  const [accountNameInput, setAccountNameInput] = useState('');
-  const [accountType, setAccountType] = useState(/** @type {AccountType} */ ('cash'));
-  const [accountCreateError, setAccountCreateError] = useState('');
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [visibleMonth, setVisibleMonth] = useState(draft.dateInput.slice(0, 7));
   const visibleCategories = useMemo(
@@ -145,20 +117,18 @@ export function TransactionForm({
   const calendarWeeks = useMemo(() => buildCalendarWeeks(visibleMonth), [visibleMonth]);
 
   useEffect(() => {
-    latestOptionsRef.current = { accountOptions, categoryOptions };
-  }, [accountOptions, categoryOptions]);
+    latestCategoryOptionsRef.current = categoryOptions;
+  }, [categoryOptions]);
 
   useEffect(() => {
-    const { accountOptions: latestAccountOptions, categoryOptions: latestCategoryOptions } =
-      latestOptionsRef.current;
+    const latestCategoryOptions = latestCategoryOptionsRef.current;
 
     const nextDraft = createTransactionFormDraft({
       mode,
       initialValues,
       categoryOptions: latestCategoryOptions,
-      accountOptions: latestAccountOptions,
+      implicitAccountId,
       defaultType,
-      defaultAccountId,
       defaultSyncStatus,
       timeZoneOffset,
     });
@@ -169,19 +139,24 @@ export function TransactionForm({
     setCategoryComposerOpen(false);
     setCategoryNameInput('');
     setCategoryCreateError('');
-    setAccountComposerOpen(false);
-    setAccountNameInput('');
-    setAccountType('cash');
-    setAccountCreateError('');
     setDatePickerOpen(false);
   }, [
-    defaultAccountId,
     defaultSyncStatus,
     defaultType,
     initialValues,
     mode,
     timeZoneOffset,
   ]);
+
+  useEffect(() => {
+    if (mode !== 'create' || !implicitAccountId) {
+      return;
+    }
+
+    setDraft((current) =>
+      current.accountId === implicitAccountId ? current : { ...current, accountId: implicitAccountId }
+    );
+  }, [implicitAccountId, mode]);
 
   useEffect(() => {
     if (!visibleCategories.some((option) => option.value === draft.categoryId)) {
@@ -192,25 +167,12 @@ export function TransactionForm({
     }
   }, [draft.categoryId, visibleCategories]);
 
-  useEffect(() => {
-    if (!filteredAccounts.some((option) => option.value === draft.accountId)) {
-      setDraft((currentDraft) => ({
-        ...currentDraft,
-        accountId: filteredAccounts[0]?.value ?? '',
-      }));
-    }
-  }, [draft.accountId, filteredAccounts]);
-
   const submitButtonLabel =
     submitLabel ?? (mode === 'edit' ? accountingCopy.actions.save : accountingCopy.actions.create);
   const disableActions = disabled || busy;
   const categoryNameSet = useMemo(
     () => new Set(visibleCategories.map((option) => option.label.trim().toLocaleLowerCase())),
     [visibleCategories]
-  );
-  const accountNameSet = useMemo(
-    () => new Set(filteredAccounts.map((option) => option.label.trim().toLocaleLowerCase())),
-    [filteredAccounts]
   );
 
   const saveNewCategory = React.useCallback(() => {
@@ -240,35 +202,6 @@ export function TransactionForm({
     setCategoryNameInput('');
     setCategoryCreateError('');
   }, [categoryNameInput, categoryNameSet, draft.type, onCreateCategory]);
-
-  const saveNewAccount = React.useCallback(() => {
-    const normalizedName = accountNameInput.trim();
-
-    if (!normalizedName) {
-      setAccountCreateError(inlineCopy.requiredName);
-      return;
-    }
-
-    if (accountNameSet.has(normalizedName.toLocaleLowerCase())) {
-      setAccountCreateError(inlineCopy.duplicateAccount);
-      return;
-    }
-
-    const created = onCreateAccount?.({ name: normalizedName, type: accountType });
-
-    if (!created?.id) {
-      return;
-    }
-
-    setDraft((currentDraft) => ({
-      ...currentDraft,
-      accountId: created.id,
-    }));
-    setAccountComposerOpen(false);
-    setAccountNameInput('');
-    setAccountType('cash');
-    setAccountCreateError('');
-  }, [accountNameInput, accountNameSet, accountType, onCreateAccount]);
 
   return (
     <View style={styles.container}>
@@ -371,101 +304,6 @@ export function TransactionForm({
                   setCategoryComposerOpen(false);
                   setCategoryNameInput('');
                   setCategoryCreateError('');
-                }}
-                style={({ pressed }) => [
-                  styles.inlineSecondaryButton,
-                  disableActions && styles.buttonDisabled,
-                  pressed && !disableActions ? styles.secondaryButtonPressed : null,
-                ]}>
-                <Text style={styles.secondaryButtonLabel}>{inlineCopy.cancel}</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : null}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>{accountingCopy.form.account}</Text>
-        <View style={styles.optionGrid}>
-          {filteredAccounts.map((option) => (
-            <View key={option.value} style={styles.optionGridItem}>
-              <OptionChip
-                active={draft.accountId === option.value}
-                disabled={disableActions}
-                label={option.label}
-                onPress={() =>
-                  setDraft((currentDraft) => ({ ...currentDraft, accountId: option.value }))
-                }
-                styles={styles}
-              />
-            </View>
-          ))}
-          <View style={styles.optionGridItem}>
-            <ActionChip
-              disabled={disableActions}
-              label={inlineCopy.addAccount}
-              onPress={() => {
-                setAccountComposerOpen((current) => !current);
-                setAccountCreateError('');
-              }}
-              styles={styles}
-            />
-          </View>
-        </View>
-        {errors.accountId ? <Text style={styles.errorText}>{errors.accountId}</Text> : null}
-        {accountComposerOpen ? (
-          <View style={styles.inlineComposer}>
-            <FieldBlock label={inlineCopy.accountName} error={accountCreateError} styles={styles}>
-              <TextInput
-                editable={!disableActions}
-                onChangeText={(value) => {
-                  setAccountNameInput(value);
-                  if (accountCreateError) {
-                    setAccountCreateError('');
-                  }
-                }}
-                placeholder={inlineCopy.accountPlaceholder}
-                placeholderTextColor={colors.textMuted}
-                style={styles.textInput}
-                value={accountNameInput}
-              />
-            </FieldBlock>
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>{inlineCopy.accountType}</Text>
-              <View style={styles.optionGrid}>
-                {accountTypeOptions.map((option) => (
-                  <View key={option.value} style={styles.optionGridItem}>
-                    <OptionChip
-                      active={accountType === option.value}
-                      disabled={disableActions}
-                      label={option.label}
-                      onPress={() => setAccountType(option.value)}
-                      styles={styles}
-                    />
-                  </View>
-                ))}
-              </View>
-            </View>
-            <View style={styles.inlineActions}>
-              <Pressable
-                accessibilityRole="button"
-                disabled={disableActions}
-                onPress={saveNewAccount}
-                style={({ pressed }) => [
-                  styles.inlinePrimaryButton,
-                  disableActions && styles.buttonDisabled,
-                  pressed && !disableActions ? styles.primaryButtonPressed : null,
-                ]}>
-                <Text style={styles.primaryButtonLabel}>{inlineCopy.addAccount}</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                disabled={disableActions}
-                onPress={() => {
-                  setAccountComposerOpen(false);
-                  setAccountNameInput('');
-                  setAccountType('cash');
-                  setAccountCreateError('');
                 }}
                 style={({ pressed }) => [
                   styles.inlineSecondaryButton,

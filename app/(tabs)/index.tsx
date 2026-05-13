@@ -7,7 +7,6 @@ import { accountingCopy } from '@/constants/accounting-copy';
 import { useMockApp } from '@/providers/mock-app-provider';
 import {
   AccountingScreen,
-  AccountSummaryRow,
   EmptyState,
   SectionHeader,
   SummaryCard,
@@ -15,7 +14,6 @@ import {
   TransactionListItem,
 } from '@/components/accounting';
 import {
-  createAccountNameMap,
   createCategoryNameMap,
   getAccountingMonthLabel,
 } from '@/components/accounting/home-details-utils.js';
@@ -29,8 +27,7 @@ export default function HomeScreen() {
     () => createStyles(colors, spacing, radius, typography),
     [colors, spacing, radius, typography]
   );
-  const { accountSummaries, categories, currentMonth, currentMonthData, syncSummary, user } =
-    useMockApp();
+  const { categories, currentMonth, currentMonthData, syncSummary, user } = useMockApp();
   const noop = React.useCallback(() => {}, []);
   const openDetails = React.useCallback(() => {
     router.push('/details' as never);
@@ -39,7 +36,6 @@ export default function HomeScreen() {
     router.push('/transaction/new' as never);
   }, [router]);
   const recentTransactions = currentMonthData.transactions.slice(0, 4);
-  const accountNameMap = useMemo(() => createAccountNameMap(accountSummaries), [accountSummaries]);
   const categoryNameMap = useMemo(() => createCategoryNameMap(categories), [categories]);
   const monthLabel = getAccountingMonthLabel(currentMonth);
   const syncDetail = `${accountingCopy.home.updatedPrefix} ${formatTransactionDateTime(syncSummary.updatedAt, user.timezone)}`;
@@ -68,20 +64,6 @@ export default function HomeScreen() {
 
         <View style={styles.section}>
           <SectionHeader
-            title={accountingCopy.actions.accounts}
-            subtitle={`${accountSummaries.length} ${accountingCopy.home.accountsSubtitleSuffix}`}
-            actionLabel={undefined}
-            onActionPress={undefined}
-          />
-          <View style={styles.stack}>
-            {accountSummaries.slice(0, 3).map((account) => (
-              <AccountSummaryRow key={account.id} account={account} onPress={noop} />
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <SectionHeader
             title={accountingCopy.home.recentTransactions}
             subtitle={`${currentMonthData.transactions.length} ${accountingCopy.home.transactionSubtitleSuffix}`}
             actionLabel={undefined}
@@ -94,7 +76,6 @@ export default function HomeScreen() {
                   key={transaction.id}
                   transaction={transaction}
                   categoryLabel={categoryNameMap.get(transaction.categoryId) ?? transaction.categoryId}
-                  accountLabel={accountNameMap.get(transaction.accountId) ?? transaction.accountId}
                   timeZone={user.timezone}
                   onPress={noop}
                 />

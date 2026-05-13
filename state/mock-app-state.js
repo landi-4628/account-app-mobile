@@ -1,4 +1,3 @@
-import { mockAccounts } from '../data/mock/mock-accounts.js';
 import { mockCategories } from '../data/mock/mock-categories.js';
 import {
   mockCurrentMonth,
@@ -16,7 +15,6 @@ const DEFAULT_ENTRY_TYPE = 'expense';
 /**
  * @typedef {import('../types/accounting').EntryType} EntryType
  * @typedef {import('../types/accounting').CategoryId} CategoryId
- * @typedef {import('../types/accounting').LedgerAccount} LedgerAccount
  * @typedef {import('../types/accounting').LedgerCategory} LedgerCategory
  * @typedef {import('../types/accounting').TransactionRecord} TransactionRecord
  * @typedef {TransactionRecord & { deletedAt?: string | null | undefined }} LocalTransactionRecord
@@ -32,7 +30,7 @@ const DEFAULT_ENTRY_TYPE = 'expense';
  * @property {EntryType} selectedEntryType
  * @property {boolean} quickAddOpen
  * @property {import('../types/accounting').AccountingUser} user
- * @property {LedgerAccount[]} accounts
+ * @property {string} implicitLedgerAccountId
  * @property {LedgerCategory[]} categories
  * @property {LocalTransactionRecord[]} transactions
  * @property {LocalTransactionRecord[]} seedTransactions
@@ -50,17 +48,13 @@ const DEFAULT_ENTRY_TYPE = 'expense';
  * @typedef {{ type: 'deleteTransaction', transactionId: string }} DeleteTransactionAction
  * @typedef {{ type: 'updateTransactionSyncStatus', transactionId: string, syncStatus: import('../types/accounting').SyncStatus, updatedAt?: string | undefined }} UpdateTransactionSyncStatusAction
  * @typedef {{ type: 'addCategory', category: LedgerCategory }} AddCategoryAction
- * @typedef {{ type: 'addAccount', account: LedgerAccount }} AddAccountAction
  * @typedef {{ type: 'toggleCategoryActive', categoryId: string, isActive: boolean }} ToggleCategoryActiveAction
- * @typedef {{ type: 'toggleAccountActive', accountId: string, isActive: boolean }} ToggleAccountActiveAction
- * @typedef {{ type: 'updateAccount', accountId: string, updates: Partial<LedgerAccount> }} UpdateAccountAction
- * @typedef {{ type: 'deleteAccount', accountId: string }} DeleteAccountAction
  * @typedef {{ type: 'updateCategory', categoryId: string, updates: Partial<LedgerCategory> }} UpdateCategoryAction
  * @typedef {{ type: 'deleteCategory', categoryId: string }} DeleteCategoryAction
- * @typedef {{ type: 'reconcileCustomDefinitions', accounts: LedgerAccount[], categories: LedgerCategory[] }} ReconcileCustomDefinitionsAction
- * @typedef {{ type: 'hydrateCustomDefinitions', definitions: { categories?: LedgerCategory[] | undefined, accounts?: LedgerAccount[] | undefined } }} HydrateCustomDefinitionsAction
+ * @typedef {{ type: 'reconcileCustomDefinitions', categories: LedgerCategory[] }} ReconcileCustomDefinitionsAction
+ * @typedef {{ type: 'hydrateCustomDefinitions', definitions: { categories?: LedgerCategory[] | undefined } }} HydrateCustomDefinitionsAction
  * @typedef {{ type: 'hydrateSnapshot', snapshot: import('./mock-app-snapshot.js').MockAppSnapshot }} HydrateSnapshotAction
- * @typedef {OpenQuickAddAction | CloseQuickAddAction | SetSelectedEntryTypeAction | SetCurrentMonthAction | AddTransactionAction | UpdateTransactionAction | DeleteTransactionAction | UpdateTransactionSyncStatusAction | AddCategoryAction | AddAccountAction | ToggleCategoryActiveAction | ToggleAccountActiveAction | UpdateAccountAction | DeleteAccountAction | UpdateCategoryAction | DeleteCategoryAction | ReconcileCustomDefinitionsAction | HydrateCustomDefinitionsAction | HydrateSnapshotAction} MockAppAction
+ * @typedef {OpenQuickAddAction | CloseQuickAddAction | SetSelectedEntryTypeAction | SetCurrentMonthAction | AddTransactionAction | UpdateTransactionAction | DeleteTransactionAction | UpdateTransactionSyncStatusAction | AddCategoryAction | ToggleCategoryActiveAction | UpdateCategoryAction | DeleteCategoryAction | ReconcileCustomDefinitionsAction | HydrateCustomDefinitionsAction | HydrateSnapshotAction} MockAppAction
  */
 
 /**
@@ -87,11 +81,6 @@ const DEFAULT_ENTRY_TYPE = 'expense';
  * @property {MonthlyStatistics} statistics
  * @property {string[]} availableMonths
  */
-
-/** @returns {LedgerAccount[]} */
-function cloneAccounts() {
-  return mockAccounts.map((account) => ({ ...account }));
-}
 
 /** @returns {LedgerCategory[]} */
 function cloneCategories() {
@@ -376,7 +365,7 @@ export function createInitialMockAppState() {
     selectedEntryType: DEFAULT_ENTRY_TYPE,
     quickAddOpen: false,
     user: { ...mockUser },
-    accounts: cloneAccounts(),
+    implicitLedgerAccountId: mockUser.defaultAccountId,
     categories: cloneCategories(),
     transactions: seedTransactions.map((transaction) => ({ ...transaction })),
     seedTransactions,
@@ -473,11 +462,6 @@ export function mockAppReducer(state, action) {
         ...state,
         categories: [...state.categories, action.category],
       };
-    case 'addAccount':
-      return {
-        ...state,
-        accounts: [...state.accounts, action.account],
-      };
     case 'toggleCategoryActive':
       return {
         ...state,
@@ -487,33 +471,6 @@ export function mockAppReducer(state, action) {
             : category
         ),
       };
-    case 'toggleAccountActive':
-      return {
-        ...state,
-        accounts: state.accounts.map((account) =>
-          account.id === action.accountId
-            ? { ...account, isActive: action.isActive }
-            : account
-        ),
-      };
-    case 'updateAccount':
-      return {
-        ...state,
-        accounts: state.accounts.map((account) =>
-          account.id === action.accountId ? { ...account, ...action.updates } : account
-        ),
-      };
-    case 'deleteAccount': {
-      const deletedAt = new Date().toISOString();
-      return {
-        ...state,
-        accounts: state.accounts.map((account) =>
-          account.id === action.accountId
-            ? { ...account, deletedAt, isActive: false }
-            : account
-        ),
-      };
-    }
     case 'updateCategory':
       return {
         ...state,
@@ -535,7 +492,6 @@ export function mockAppReducer(state, action) {
     case 'reconcileCustomDefinitions':
       return {
         ...state,
-        accounts: reconcileCustomRows(state.accounts, action.accounts),
         categories: reconcileCustomRows(state.categories, action.categories),
       };
     case 'hydrateSnapshot':
@@ -590,29 +546,6 @@ export function selectCurrentMonthSummary(state) {
  */
 export function selectCurrentMonthStatistics(state) {
   return mergeMonthStatistics(state, state.currentMonth);
-}
-
-/**
- * @param {MockAppState} state
- * @returns {LedgerAccount[]}
- */
-export function selectAccountSummaries(state) {
-  return state.accounts
-    .filter((account) => account.deletedAt == null)
-    .map((account) => {
-    const delta = state.transactions.reduce((sum, transaction) => {
-      if (transaction.accountId !== account.id || isDeletedTransaction(transaction)) {
-        return sum;
-      }
-
-      return sum + (transaction.type === 'income' ? transaction.amount : -transaction.amount);
-    }, 0);
-
-    return {
-      ...account,
-      currentBalance: account.initialBalance + delta,
-    };
-  });
 }
 
 /**

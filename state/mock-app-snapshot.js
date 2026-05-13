@@ -1,7 +1,6 @@
 /**
  * @typedef {import('./mock-app-state.js').MockAppState} MockAppState
  * @typedef {import('../types/accounting').EntryType} EntryType
- * @typedef {import('../types/accounting').LedgerAccount} LedgerAccount
  * @typedef {import('../types/accounting').LedgerCategory} LedgerCategory
  * @typedef {import('../types/accounting').TransactionRecord} TransactionRecord
  */
@@ -10,8 +9,8 @@
  * @typedef {object} MockAppSnapshot
  * @property {string} currentMonth
  * @property {EntryType} selectedEntryType
+ * @property {string} implicitLedgerAccountId
  * @property {TransactionRecord[]} transactions
- * @property {LedgerAccount[]} accounts
  * @property {LedgerCategory[]} categories
  * @property {string} syncUpdatedAt
  */
@@ -24,8 +23,8 @@ export function selectMockAppSnapshot(state) {
   return {
     currentMonth: state.currentMonth,
     selectedEntryType: state.selectedEntryType,
+    implicitLedgerAccountId: state.implicitLedgerAccountId,
     transactions: state.transactions.map((transaction) => ({ ...transaction })),
-    accounts: state.accounts.map((account) => ({ ...account })),
     categories: state.categories.map((category) => ({ ...category })),
     syncUpdatedAt: state.syncUpdatedAt,
   };
@@ -39,10 +38,10 @@ export function selectCompactedMockAppSnapshot(state) {
   return {
     currentMonth: state.currentMonth,
     selectedEntryType: state.selectedEntryType,
+    implicitLedgerAccountId: state.implicitLedgerAccountId,
     transactions: state.transactions
       .filter((transaction) => transaction.deletedAt == null)
       .map((transaction) => ({ ...transaction })),
-    accounts: state.accounts.map((account) => ({ ...account })),
     categories: state.categories.map((category) => ({ ...category })),
     syncUpdatedAt: state.syncUpdatedAt,
   };
@@ -64,11 +63,13 @@ export function parseMockAppSnapshot(raw) {
       return null;
     }
 
+    const implicitLedgerAccountId = normalizeImplicitLedgerAccountId(parsed);
+
     return {
       currentMonth: parsed.currentMonth,
       selectedEntryType: parsed.selectedEntryType,
+      implicitLedgerAccountId,
       transactions: parsed.transactions.map((transaction) => ({ ...transaction })),
-      accounts: parsed.accounts.map((account) => ({ ...account })),
       categories: parsed.categories.map((category) => ({ ...category })),
       syncUpdatedAt: parsed.syncUpdatedAt,
     };
@@ -87,37 +88,68 @@ export function applyMockAppSnapshot(initialState, snapshot) {
     ...initialState,
     currentMonth: snapshot.currentMonth,
     selectedEntryType: snapshot.selectedEntryType,
+    implicitLedgerAccountId: snapshot.implicitLedgerAccountId,
     transactions: snapshot.transactions.map((transaction) => ({ ...transaction })),
-    accounts: snapshot.accounts.map((account) => ({ ...account })),
     categories: snapshot.categories.map((category) => ({ ...category })),
     syncUpdatedAt: snapshot.syncUpdatedAt,
   };
 }
 
 /**
- * @param {unknown} value
+ * @param {any} value
  * @returns {value is MockAppSnapshot}
  */
 function isSnapshotShape(value) {
-  return Boolean(
-    value
-      && typeof value === 'object'
-      && 'currentMonth' in value
-      && 'selectedEntryType' in value
-      && 'transactions' in value
-      && 'accounts' in value
-      && 'categories' in value
-      && 'syncUpdatedAt' in value
-      && typeof value.currentMonth === 'string'
-      && isEntryType(value.selectedEntryType)
-      && Array.isArray(value.transactions)
-      && value.transactions.every(isTransactionRecord)
-      && Array.isArray(value.accounts)
-      && value.accounts.every(isLedgerAccount)
-      && Array.isArray(value.categories)
-      && value.categories.every(isLedgerCategory)
-      && typeof value.syncUpdatedAt === 'string'
-  );
+  if (
+    !value
+    || typeof value !== 'object'
+    || !('currentMonth' in value)
+    || !('selectedEntryType' in value)
+    || !('transactions' in value)
+    || !('categories' in value)
+    || !('syncUpdatedAt' in value)
+    || typeof value.currentMonth !== 'string'
+    || !isEntryType(value.selectedEntryType)
+    || !Array.isArray(value.transactions)
+    || !value.transactions.every(isTransactionRecord)
+    || !Array.isArray(value.categories)
+    || !value.categories.every(isLedgerCategory)
+    || typeof value.syncUpdatedAt !== 'string'
+  ) {
+    return false;
+  }
+
+  if (typeof value.implicitLedgerAccountId === 'string') {
+    return true;
+  }
+
+  if ('accounts' in value && Array.isArray(value.accounts) && value.accounts.every(isLedgerAccount)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * @param {Record<string, any>} parsed
+ * @returns {string}
+ */
+function normalizeImplicitLedgerAccountId(parsed) {
+  if (typeof parsed.implicitLedgerAccountId === 'string') {
+    return parsed.implicitLedgerAccountId;
+  }
+
+  const legacyAccounts = Array.isArray(parsed.accounts) ? parsed.accounts : [];
+  if (legacyAccounts.length > 0 && typeof legacyAccounts[0]?.id === 'string') {
+    return legacyAccounts[0].id;
+  }
+
+  const firstTx = Array.isArray(parsed.transactions) ? parsed.transactions[0] : undefined;
+  if (firstTx && typeof firstTx.accountId === 'string') {
+    return firstTx.accountId;
+  }
+
+  return '';
 }
 
 /**
@@ -158,7 +190,7 @@ function isLedgerCategory(value) {
 
 /**
  * @param {unknown} value
- * @returns {value is LedgerAccount}
+ * @returns {value is import('../types/accounting').LedgerAccount}
  */
 function isLedgerAccount(value) {
   return Boolean(

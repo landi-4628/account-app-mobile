@@ -12,10 +12,10 @@ import {
 
 test('defines the core SQLite tables for auth, ledger data, transactions, and sync state', () => {
   assert.equal(SQLITE_SCHEMA_VERSION, SQLITE_MIGRATIONS.length);
-  assert.equal(SQLITE_SCHEMA_VERSION, 3);
+  assert.equal(SQLITE_SCHEMA_VERSION, 4);
   assert.deepEqual(
     SQLITE_TABLE_DEFINITIONS.map((definition) => definition.name),
-    ['auth_session', 'accounts', 'categories', 'transactions', 'sync_state']
+    ['auth_session', 'categories', 'transactions', 'sync_state']
   );
   assert.match(
     SQLITE_TABLE_DEFINITIONS.find((definition) => definition.name === 'transactions')?.sql ?? '',
@@ -44,5 +44,9 @@ test('applies pending migrations in version order and updates user_version', asy
   assert.ok(
     executed.some((sql) => sql.includes('CREATE TABLE IF NOT EXISTS transactions')),
     'expected transactions table migration to execute'
+  );
+  assert.ok(
+    executed.some((sql) => sql.includes('DROP TABLE IF EXISTS accounts')),
+    'expected migration to drop legacy accounts table when upgrading'
   );
 });

@@ -22,7 +22,6 @@ import {
 import {
   createInitialMockAppState,
   mockAppReducer,
-  selectAccountSummaries,
   selectCategoriesByType,
   selectCurrentMonthData,
   selectSeededMonthlyStatistics,
@@ -39,20 +38,16 @@ import {
   selectMockAppSnapshot,
 } from '../state/mock-app-snapshot.js';
 import { useSQLiteContext } from 'expo-sqlite';
-import { createAccountRepository } from '../data/repositories/account-repository.js';
 import { createCategoryRepository } from '../data/repositories/category-repository.js';
 import { createLedgerDefinitionsApi } from '../lib/ledger-definitions-api.js';
 import {
-  ledgerAccountToInsert,
   ledgerCategoryToInsert,
-  repoAccountRowToLedger,
   repoCategoryRowToLedger,
 } from './local-definition-mappers.js';
 import { getSyncableTransactions, shouldAutoSync } from './mock-app-sync-support.js';
 
 /**
  * @typedef {import('../types/accounting').EntryType} EntryType
- * @typedef {import('../types/accounting').LedgerAccount} LedgerAccount
  * @typedef {import('../types/accounting').LedgerCategory} LedgerCategory
  * @typedef {import('../types/accounting').MonthlyStatistics} MonthlyStatistics
  * @typedef {import('../types/accounting').EditTransactionInput} EditTransactionInput
@@ -64,7 +59,6 @@ import { getSyncableTransactions, shouldAutoSync } from './mock-app-sync-support
  * @typedef {ReturnType<typeof createInitialMockAppState>} MockAppState
  * @typedef {ReturnType<typeof selectCurrentMonthData>} CurrentMonthData
  * @typedef {import('../lib/auth-api.js').RemoteAuthUser} RemoteAuthUser
- * @typedef {LedgerAccount & { remoteId?: string | undefined, updatedAt?: string | undefined, deletedAt?: string | null }} LocalLedgerAccount
  * @typedef {LedgerCategory & { remoteId?: string | undefined, updatedAt?: string | undefined, deletedAt?: string | null, color?: string | undefined }} LocalLedgerCategory
  * @typedef {TransactionRecord & { remoteId?: string | undefined, updatedAt?: string | undefined, deletedAt?: string | null, syncError?: string | null, syncedAt?: string | null }} LocalTransactionRecord
  */
@@ -80,18 +74,14 @@ import { getSyncableTransactions, shouldAutoSync } from './mock-app-sync-support
  * @property {(transactionId: string) => void} deleteTransaction
  * @property {(transactionId: string, syncStatus: import('../types/accounting').SyncStatus, updatedAt?: string | undefined) => void} updateTransactionSyncStatus
  * @property {(input: { name: string, type: EntryType }) => Promise<LedgerCategory>} addCategory
- * @property {(input: { name: string, type: import('../types/accounting').AccountType }) => Promise<LedgerAccount>} addAccount
  * @property {(categoryId: string, isActive: boolean) => Promise<void>} toggleCategoryActive
- * @property {(accountId: string, isActive: boolean) => Promise<void>} toggleAccountActive
- * @property {(accountId: string, updates: Partial<LedgerAccount>) => Promise<void>} updateAccount
- * @property {(accountId: string) => Promise<void>} deleteAccount
  * @property {(categoryId: string, updates: Partial<LedgerCategory>) => Promise<void>} updateCategory
  * @property {(categoryId: string) => Promise<void>} deleteCategory
  * @property {(enabled: boolean) => void} setAutoSyncEnabled
  * @property {() => Promise<void>} syncPendingTransactions
  * @property {(input: { email: string, password: string }) => Promise<unknown>} login
  * @property {(input: { name: string, email: string, password: string }) => Promise<unknown>} register
- * @property {(input: { name: string, email: string, ledgerName: string, timezone: string, defaultAccountId: string }) => Promise<unknown>} updateProfile
+ * @property {(input: { name: string, email: string, ledgerName: string, timezone: string }) => Promise<unknown>} updateProfile
  * @property {(input: { currentPassword: string, nextPassword: string, confirmPassword: string }) => Promise<void>} changePassword
  */
 
@@ -108,11 +98,10 @@ import { getSyncableTransactions, shouldAutoSync } from './mock-app-sync-support
  * @property {string} currentMonth
  * @property {EntryType} selectedEntryType
  * @property {boolean} quickAddOpen
- * @property {LedgerAccount[]} accounts
+ * @property {string} implicitLedgerAccountId
  * @property {LedgerCategory[]} categories
  * @property {TransactionRecord[]} transactions
  * @property {CurrentMonthData} currentMonthData
- * @property {LedgerAccount[]} accountSummaries
  * @property {SyncSummary} syncSummary
  * @property {boolean} autoSyncEnabled
  * @property {boolean} syncInFlight
@@ -165,7 +154,6 @@ export function MockAppProvider({ children }) {
     /** @type {(RemoteAuthUser & {
      *   ledgerName?: string | undefined,
      *   timezone?: string | undefined,
-     *   defaultAccountId?: string | undefined,
      * }) | null} */ (null)
   );
   const lastAuthenticatedUserIdRef = useRef(/** @type {string | null} */ (null));
@@ -190,7 +178,6 @@ export function MockAppProvider({ children }) {
   );
 
   const sqlite = useSQLiteContext();
-  const accountRepo = useMemo(() => createAccountRepository(/** @type {any} */ (sqlite)), [sqlite]);
   const categoryRepo = useMemo(() => createCategoryRepository(/** @type {any} */ (sqlite)), [sqlite]);
   const definitionsApi = useMemo(
     () =>
@@ -203,7 +190,6 @@ export function MockAppProvider({ children }) {
   );
 
   const currentMonthData = useMemo(() => selectCurrentMonthData(state), [state]);
-  const accountSummaries = useMemo(() => selectAccountSummaries(state), [state]);
   const syncSummary = useMemo(() => selectSyncSummary(state), [state]);
   const seededMonthlyStatistics = useMemo(() => selectSeededMonthlyStatistics(), []);
   const persistedDefinitions = useMemo(() => selectPersistedCustomDefinitions(state), [state]);
@@ -212,17 +198,6 @@ export function MockAppProvider({ children }) {
   const remoteLedgerId = remoteUser?.currentLedgerId ?? null;
   const canSyncRemotely = Boolean(remoteAccessToken && remoteLedgerId != null);
   const ownerUserId = authSession?.userId ?? '';
-
-  const persistCustomAccount = useCallback(
-    async (/** @type {LedgerAccount} */ account) => {
-      if (!ownerUserId || !account.isCustom) {
-        return;
-      }
-
-      await accountRepo.saveAccount(ledgerAccountToInsert(account, ownerUserId));
-    },
-    [accountRepo, ownerUserId]
-  );
 
   const persistCustomCategory = useCallback(
     async (/** @type {LedgerCategory} */ category) => {
@@ -267,6 +242,8 @@ export function MockAppProvider({ children }) {
             currentMonth: snapshotBaseState.currentMonth,
             selectedEntryType: snapshotBaseState.selectedEntryType,
             fallbackSyncUpdatedAt: snapshotBaseState.syncUpdatedAt,
+            baselineImplicitLedgerAccountId:
+              snapshotBaseState.implicitLedgerAccountId || snapshotBaseState.user.defaultAccountId,
           }),
         });
         return true;
@@ -278,6 +255,8 @@ export function MockAppProvider({ children }) {
           currentMonth: snapshotBaseState.currentMonth,
           selectedEntryType: snapshotBaseState.selectedEntryType,
           fallbackSyncUpdatedAt: snapshotBaseState.syncUpdatedAt,
+          baselineImplicitLedgerAccountId:
+            snapshotBaseState.implicitLedgerAccountId || snapshotBaseState.user.defaultAccountId,
         }),
       });
 
@@ -295,7 +274,7 @@ export function MockAppProvider({ children }) {
         return false;
       }
 
-      const definitionPayload = buildDefinitionsPushPayload(nextState.accounts, nextState.categories);
+      const definitionPayload = buildDefinitionsPushPayload(nextState.categories);
       const definitionResponse = await ledgerSyncApi.pushDefinitions(remoteAccessToken, definitionPayload);
       const references = buildRemoteReferenceMaps(definitionResponse);
       const transactionsToSync = getSyncableTransactions(nextState.transactions);
@@ -404,10 +383,7 @@ export function MockAppProvider({ children }) {
 
     async function pullLocalDefinitions() {
       try {
-        const [accountRows, categoryRows] = await Promise.all([
-          accountRepo.listAccounts(ownerUserId),
-          categoryRepo.listCategories(ownerUserId),
-        ]);
+        const categoryRows = await categoryRepo.listCategories(ownerUserId);
 
         if (!active) {
           return;
@@ -415,7 +391,6 @@ export function MockAppProvider({ children }) {
 
         dispatch({
           type: 'reconcileCustomDefinitions',
-          accounts: accountRows.map(repoAccountRowToLedger),
           categories: categoryRows.map(repoCategoryRowToLedger),
         });
       } catch {
@@ -428,7 +403,7 @@ export function MockAppProvider({ children }) {
     return () => {
       active = false;
     };
-  }, [hydrated, ownerUserId, accountRepo, categoryRepo]);
+  }, [hydrated, ownerUserId, categoryRepo]);
 
   useEffect(() => {
     if (!hydrated || !remoteAccessToken || remoteLedgerId == null) {
@@ -565,11 +540,10 @@ export function MockAppProvider({ children }) {
       currentMonth: state.currentMonth,
       selectedEntryType: state.selectedEntryType,
       quickAddOpen: state.quickAddOpen,
-      accounts: accountSummaries,
+      implicitLedgerAccountId: state.implicitLedgerAccountId || effectiveUser.defaultAccountId,
       categories: state.categories,
       transactions: state.transactions,
       currentMonthData,
-      accountSummaries,
       syncSummary,
       autoSyncEnabled,
       syncInFlight,
@@ -672,53 +646,6 @@ export function MockAppProvider({ children }) {
 
           return category;
         },
-        addAccount: async ({ name, type }) => {
-          const account = createCustomAccountRecord(name, type);
-          /** @type {MockAppAction} */
-          const action = {
-            type: 'addAccount',
-            account,
-          };
-          let working = reduceState(state, action);
-          dispatch(action);
-          await persistCustomAccount(working.accounts.find((a) => a.id === account.id) ?? account);
-
-          if (canSyncRemotely) {
-            const accessToken = remoteAccessToken;
-            if (!accessToken) {
-              return account;
-            }
-
-            try {
-              const res = await definitionsApi.createAccount(accessToken, {
-                client_id: account.id,
-                name: account.name,
-                type: account.type,
-                currency: 'CNY',
-                opening_balance: account.initialBalance ?? 0,
-              });
-              const remote = res?.data?.account;
-              if (remote?.id) {
-                const ua = {
-                  type: 'updateAccount',
-                  accountId: account.id,
-                  updates: { remoteId: String(remote.id) },
-                };
-                working = reduceState(working, /** @type {any} */ (ua));
-                dispatch(/** @type {any} */ (ua));
-                await persistCustomAccount(
-                  working.accounts.find((a) => a.id === account.id) ?? account
-                );
-              }
-            } catch {
-              // 远端失败时保留本地记录
-            }
-
-            void syncRemoteState(working);
-          }
-
-          return account;
-        },
         toggleCategoryActive: async (categoryId, isActive) => {
           /** @type {MockAppAction} */
           const action = {
@@ -745,85 +672,6 @@ export function MockAppProvider({ children }) {
 
             void syncRemoteState(working);
           } else if (canSyncRemotely) {
-            void syncRemoteState(working);
-          }
-        },
-        toggleAccountActive: async (accountId, isActive) => {
-          /** @type {MockAppAction} */
-          const action = {
-            type: 'toggleAccountActive',
-            accountId,
-            isActive,
-          };
-          let working = reduceState(state, action);
-          dispatch(action);
-          const acc = working.accounts.find((a) => a.id === accountId);
-          if (acc?.isCustom) {
-            await persistCustomAccount(acc);
-          }
-
-          if (canSyncRemotely && acc?.remoteId && remoteAccessToken) {
-            try {
-              await definitionsApi.updateAccount(remoteAccessToken, acc.remoteId, {
-                is_deleted: !isActive,
-                ...(isActive ? { deleted_at: null } : { deleted_at: new Date().toISOString() }),
-              });
-            } catch {
-              // ignore
-            }
-
-            void syncRemoteState(working);
-          } else if (canSyncRemotely) {
-            void syncRemoteState(working);
-          }
-        },
-        updateAccount: async (accountId, updates) => {
-          /** @type {MockAppAction} */
-          const action = {
-            type: 'updateAccount',
-            accountId,
-            updates,
-          };
-          let working = reduceState(state, action);
-          dispatch(action);
-          const acc = working.accounts.find((a) => a.id === accountId);
-          if (acc?.isCustom) {
-            await persistCustomAccount(acc);
-          }
-
-          if (canSyncRemotely && acc?.remoteId && remoteAccessToken) {
-            try {
-              await definitionsApi.updateAccount(remoteAccessToken, acc.remoteId, {
-                name: updates.name ?? acc.name,
-                type: updates.type ?? acc.type,
-                opening_balance:
-                  updates.initialBalance != null ? updates.initialBalance : acc.initialBalance,
-              });
-            } catch {
-              // ignore
-            }
-
-            void syncRemoteState(working);
-          }
-        },
-        deleteAccount: async (accountId) => {
-          /** @type {MockAppAction} */
-          const action = { type: 'deleteAccount', accountId };
-          let working = reduceState(state, action);
-          dispatch(action);
-          const acc = working.accounts.find((a) => a.id === accountId);
-          const deletedAt = acc?.deletedAt ?? new Date().toISOString();
-          if (ownerUserId) {
-            await accountRepo.softDeleteAccount(accountId, deletedAt, ownerUserId);
-          }
-
-          if (canSyncRemotely && acc?.remoteId && remoteAccessToken) {
-            try {
-              await definitionsApi.deleteAccount(remoteAccessToken, acc.remoteId);
-            } catch {
-              // ignore
-            }
-
             void syncRemoteState(working);
           }
         },
@@ -888,6 +736,8 @@ export function MockAppProvider({ children }) {
                 currentMonth: state.currentMonth,
                 selectedEntryType: state.selectedEntryType,
                 fallbackSyncUpdatedAt: state.syncUpdatedAt,
+                baselineImplicitLedgerAccountId:
+                  state.implicitLedgerAccountId || state.user.defaultAccountId,
               }),
             });
           }
@@ -907,6 +757,8 @@ export function MockAppProvider({ children }) {
                 currentMonth: state.currentMonth,
                 selectedEntryType: state.selectedEntryType,
                 fallbackSyncUpdatedAt: state.syncUpdatedAt,
+                baselineImplicitLedgerAccountId:
+                  state.implicitLedgerAccountId || state.user.defaultAccountId,
               }),
             });
           }
@@ -926,7 +778,6 @@ export function MockAppProvider({ children }) {
             ...user,
             ledgerName: draft.ledgerName,
             timezone: draft.timezone,
-            defaultAccountId: draft.defaultAccountId,
           });
           return user;
         },
@@ -944,8 +795,6 @@ export function MockAppProvider({ children }) {
       },
     }),
     [
-      accountRepo,
-      accountSummaries,
       authApi,
       authSession,
       autoSyncEnabled,
@@ -957,7 +806,6 @@ export function MockAppProvider({ children }) {
       hydrateRemoteLedgerState,
       ledgerSyncApi,
       ownerUserId,
-      persistCustomAccount,
       persistCustomCategory,
       reduceState,
       remoteAccessToken,
@@ -985,7 +833,6 @@ export function MockAppProvider({ children }) {
  *   email?: string | undefined,
  *   ledgerName?: string | undefined,
  *   timezone?: string | undefined,
- *   defaultAccountId?: string | undefined,
  * }} [remoteUser]
  */
 function mergeAccountingUser(baseUser, remoteUser) {
@@ -1000,10 +847,6 @@ function mergeAccountingUser(baseUser, remoteUser) {
     email: typeof remoteUser.email === 'string' ? remoteUser.email : baseUser.email,
     ledgerName: typeof remoteUser.ledgerName === 'string' ? remoteUser.ledgerName : baseUser.ledgerName,
     timezone: typeof remoteUser.timezone === 'string' ? remoteUser.timezone : baseUser.timezone,
-    defaultAccountId:
-      typeof remoteUser.defaultAccountId === 'string'
-        ? remoteUser.defaultAccountId
-        : baseUser.defaultAccountId,
   };
 }
 
@@ -1017,23 +860,6 @@ function createCustomCategoryRecord(name, type) {
     id: `cat-custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name: name.trim(),
     type,
-    isActive: true,
-    isCustom: true,
-  };
-}
-
-/**
- * @param {string} name
- * @param {import('../types/accounting').AccountType} type
- * @returns {LedgerAccount}
- */
-function createCustomAccountRecord(name, type) {
-  return {
-    id: `acc-custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    name: name.trim(),
-    type,
-    initialBalance: 0,
-    currentBalance: 0,
     isActive: true,
     isCustom: true,
   };
@@ -1053,11 +879,6 @@ export function useMockApp() {
 /** @returns {CurrentMonthData} */
 export function useCurrentMonthData() {
   return useMockApp().currentMonthData;
-}
-
-/** @returns {LedgerAccount[]} */
-export function useAccountSummaries() {
-  return useMockApp().accountSummaries;
 }
 
 /** @returns {SyncSummary} */

@@ -4,16 +4,12 @@ function hasFunction(candidate) {
 
 export function getActionAvailability(actions) {
   return {
-    canCreateAccounts: hasFunction(actions?.addAccount),
     canCreateCategories: hasFunction(actions?.addCategory),
     canChangePassword: hasFunction(actions?.changePassword),
-    canEditAccounts: hasFunction(actions?.updateAccount) || hasFunction(actions?.saveAccount),
     canEditCategories: hasFunction(actions?.updateCategory) || hasFunction(actions?.saveCategory),
-    canDeleteAccounts: hasFunction(actions?.deleteAccount),
     canDeleteCategories: hasFunction(actions?.deleteCategory),
     canLogin: hasFunction(actions?.login),
     canRegister: hasFunction(actions?.register),
-    canToggleAccounts: hasFunction(actions?.toggleAccountActive),
     canToggleCategories: hasFunction(actions?.toggleCategoryActive),
     canUpdateProfile: hasFunction(actions?.updateProfile) || hasFunction(actions?.saveProfile),
   };
@@ -24,9 +20,7 @@ const capabilityMap = {
   register: 'canRegister',
   profileEdit: 'canUpdateProfile',
   passwordChange: 'canChangePassword',
-  accountsCreate: 'canCreateAccounts',
   categoriesCreate: 'canCreateCategories',
-  accountsManage: 'canManageAccounts',
   categoriesManage: 'canManageCategories',
 };
 
@@ -34,11 +28,6 @@ export function buildCapabilityNotice(feature, availability) {
   const capabilityKey = capabilityMap[feature];
   const effectiveAvailability = {
     ...availability,
-    canManageAccounts: Boolean(
-      availability?.canEditAccounts ||
-        availability?.canToggleAccounts ||
-        availability?.canDeleteAccounts
-    ),
     canManageCategories: Boolean(
       availability?.canEditCategories ||
         availability?.canToggleCategories ||
@@ -61,35 +50,6 @@ function compareNames(left, right) {
   return String(left?.name ?? '').localeCompare(String(right?.name ?? ''), 'en', {
     sensitivity: 'base',
   });
-}
-
-export function buildAccountManagementViewModel(accounts, actions) {
-  const availability = getActionAvailability(actions);
-  const canManageExisting =
-    availability.canEditAccounts ||
-    availability.canToggleAccounts ||
-    availability.canDeleteAccounts;
-  const rows = [...accounts]
-    .filter((account) => account.deletedAt == null)
-    .sort((left, right) => {
-      if (left.isActive !== right.isActive) {
-        return left.isActive ? -1 : 1;
-      }
-
-      return compareNames(left, right);
-    })
-    .map((account) => ({
-      id: account.id,
-      isActive: Boolean(account.isActive),
-      item: account,
-      manageMode: canManageExisting ? 'editable' : 'read-only',
-    }));
-
-  return {
-    canCreate: true,
-    canManageExisting,
-    rows,
-  };
 }
 
 export function buildCategoryManagementViewModel(categories, entryType, actions) {
@@ -159,7 +119,6 @@ export function validateAuthFormDraft(mode, draft) {
 
 export function buildProfileFormDraft(user) {
   return {
-    defaultAccountId: user?.defaultAccountId ?? '',
     email: user?.email ?? '',
     ledgerName: user?.ledgerName ?? '',
     name: user?.name ?? '',
@@ -184,10 +143,6 @@ export function validateProfileFormDraft(draft) {
 
   if (isBlank(draft?.timezone)) {
     errors.timezone = 'timezone';
-  }
-
-  if (isBlank(draft?.defaultAccountId)) {
-    errors.defaultAccountId = 'defaultAccountId';
   }
 
   return errors;

@@ -21,17 +21,17 @@ export const SQLITE_MIGRATIONS = [
   {
     version: 2,
     statements: [
-      'ALTER TABLE accounts ADD COLUMN remote_id TEXT;',
       'ALTER TABLE categories ADD COLUMN remote_id TEXT;',
       'ALTER TABLE categories ADD COLUMN color TEXT;',
     ],
   },
   {
     version: 3,
-    statements: [
-      'ALTER TABLE accounts ADD COLUMN owner_user_id TEXT;',
-      'ALTER TABLE categories ADD COLUMN owner_user_id TEXT;',
-    ],
+    statements: ['ALTER TABLE categories ADD COLUMN owner_user_id TEXT;'],
+  },
+  {
+    version: 4,
+    statements: ['DROP TABLE IF EXISTS accounts;'],
   },
 ];
 

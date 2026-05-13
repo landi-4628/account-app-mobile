@@ -22,7 +22,6 @@ const stackTitles = {
   profile: '\u4e2a\u4eba\u8d44\u6599',
   editProfile: '\u7f16\u8f91\u4e2a\u4eba\u4fe1\u606f',
   changePassword: '\u4fee\u6539\u5bc6\u7801',
-  accounts: '\u8d26\u6237\u7ba1\u7406',
   categories: '\u5206\u7c7b\u7ba1\u7406',
 };
 
@@ -41,7 +40,6 @@ export default function RootLayout() {
               <Stack.Screen name="profile" options={{ title: stackTitles.profile }} />
               <Stack.Screen name="profile/edit" options={{ title: stackTitles.editProfile }} />
               <Stack.Screen name="profile/change-password" options={{ title: stackTitles.changePassword }} />
-              <Stack.Screen name="accounts" options={{ title: stackTitles.accounts }} />
               <Stack.Screen name="categories" options={{ title: stackTitles.categories }} />
               <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
             </Stack>

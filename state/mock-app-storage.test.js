@@ -97,8 +97,8 @@ test('reads and writes app snapshot as json when backing storage is available', 
   const snapshot = {
     currentMonth: '2026-05',
     selectedEntryType: 'expense',
+    implicitLedgerAccountId: 'acc-wechat',
     transactions: [],
-    accounts: [],
     categories: [],
     syncUpdatedAt: '2026-05-13T10:00:00+08:00',
   };
