@@ -25,7 +25,10 @@ import {
   selectPersistedCustomDefinitions,
 } from '../state/mock-app-persistence-support.js';
 import { mockAppRuntimeStorageAdapter } from '../state/mock-app-runtime-storage.js';
-import { selectMockAppSnapshot } from '../state/mock-app-snapshot.js';
+import {
+  selectCompactedMockAppSnapshot,
+  selectMockAppSnapshot,
+} from '../state/mock-app-snapshot.js';
 import { getSyncableTransactions, shouldAutoSync } from './mock-app-sync-support.js';
 
 /**
@@ -181,10 +184,19 @@ export function MockAppProvider({ children }) {
     /**
      * @param {string} accessToken
      * @param {MockAppState} snapshotBaseState
+     * @param {{ compactLocalDeletionsOnEmptyPull?: boolean | undefined }} [options]
      */
-    async (accessToken, snapshotBaseState) => {
+    async (accessToken, snapshotBaseState, options = {}) => {
       const payload = await ledgerSyncApi.pull(accessToken);
       if (!hasRemoteLedgerData(payload)) {
+        if (options.compactLocalDeletionsOnEmptyPull) {
+          dispatch({
+            type: 'hydrateSnapshot',
+            snapshot: selectCompactedMockAppSnapshot(snapshotBaseState),
+          });
+          return true;
+        }
+
         return false;
       }
 
@@ -221,7 +233,9 @@ export function MockAppProvider({ children }) {
         await ledgerSyncApi.pushTransactions(remoteAccessToken, transactionPayload);
       }
 
-      await hydrateRemoteLedgerState(remoteAccessToken, nextState);
+      await hydrateRemoteLedgerState(remoteAccessToken, nextState, {
+        compactLocalDeletionsOnEmptyPull: true,
+      });
       return true;
     },
     [hydrateRemoteLedgerState, ledgerSyncApi, remoteAccessToken, remoteLedgerId]

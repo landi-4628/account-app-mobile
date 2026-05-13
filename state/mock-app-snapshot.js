@@ -32,6 +32,23 @@ export function selectMockAppSnapshot(state) {
 }
 
 /**
+ * @param {MockAppState} state
+ * @returns {MockAppSnapshot}
+ */
+export function selectCompactedMockAppSnapshot(state) {
+  return {
+    currentMonth: state.currentMonth,
+    selectedEntryType: state.selectedEntryType,
+    transactions: state.transactions
+      .filter((transaction) => transaction.deletedAt == null)
+      .map((transaction) => ({ ...transaction })),
+    accounts: state.accounts.map((account) => ({ ...account })),
+    categories: state.categories.map((category) => ({ ...category })),
+    syncUpdatedAt: state.syncUpdatedAt,
+  };
+}
+
+/**
  * @param {string | null | undefined | unknown} raw
  * @returns {MockAppSnapshot | null}
  */

@@ -5,6 +5,7 @@ import { createInitialMockAppState } from './mock-app-state.js';
 import {
   applyMockAppSnapshot,
   parseMockAppSnapshot,
+  selectCompactedMockAppSnapshot,
   selectMockAppSnapshot,
 } from './mock-app-snapshot.js';
 
@@ -93,6 +94,49 @@ test('parses a valid raw snapshot and returns null for missing top-level fields'
     ),
     null
   );
+});
+
+test('compacts deleted transactions out of the persisted snapshot view', () => {
+  const initialState = createInitialMockAppState();
+  const state = {
+    ...initialState,
+    transactions: [
+      {
+        id: 'tx-active',
+        type: 'income',
+        amount: 8800,
+        categoryId: 'cat-freelance',
+        accountId: 'acc-bank',
+        note: 'Active',
+        transactionAt: '2026-04-12T13:00:00+08:00',
+        syncStatus: 'synced',
+      },
+      {
+        id: 'tx-deleted',
+        type: 'expense',
+        amount: 3200,
+        categoryId: 'cat-food',
+        accountId: 'acc-cash',
+        note: 'Deleted',
+        transactionAt: '2026-04-13T13:00:00+08:00',
+        syncStatus: 'pending',
+        deletedAt: '2026-05-13T10:05:00+08:00',
+      },
+    ],
+  };
+
+  assert.deepEqual(selectCompactedMockAppSnapshot(state).transactions, [
+    {
+      id: 'tx-active',
+      type: 'income',
+      amount: 8800,
+      categoryId: 'cat-freelance',
+      accountId: 'acc-bank',
+      note: 'Active',
+      transactionAt: '2026-04-12T13:00:00+08:00',
+      syncStatus: 'synced',
+    },
+  ]);
 });
 
 test('returns null when any persisted array contains an invalid item', () => {
