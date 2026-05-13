@@ -1,5 +1,5 @@
 /**
- * @param {Array<{ syncStatus: import('../types/accounting').SyncStatus }>} transactions
+ * @param {Array<{ id: string, syncStatus: import('../types/accounting').SyncStatus, deletedAt?: string | null | undefined }>} transactions
  */
 export function getSyncableTransactions(transactions) {
   return transactions.filter(

@@ -195,5 +195,6 @@ function isTransactionRecord(value) {
       && typeof value.note === 'string'
       && typeof value.transactionAt === 'string'
       && isSyncStatus(value.syncStatus)
+      && (!('deletedAt' in value) || value.deletedAt === null || typeof value.deletedAt === 'string')
   );
 }

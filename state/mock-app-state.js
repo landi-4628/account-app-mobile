@@ -19,6 +19,7 @@ const DEFAULT_ENTRY_TYPE = 'expense';
  * @typedef {import('../types/accounting').LedgerAccount} LedgerAccount
  * @typedef {import('../types/accounting').LedgerCategory} LedgerCategory
  * @typedef {import('../types/accounting').TransactionRecord} TransactionRecord
+ * @typedef {TransactionRecord & { deletedAt?: string | null | undefined }} LocalTransactionRecord
  * @typedef {import('../types/accounting').SummaryCardData} SummaryCardData
  * @typedef {import('../types/accounting').CategoryBreakdownItem} CategoryBreakdownItem
  * @typedef {import('../types/accounting').MonthlyStatistics} MonthlyStatistics
@@ -33,8 +34,8 @@ const DEFAULT_ENTRY_TYPE = 'expense';
  * @property {import('../types/accounting').AccountingUser} user
  * @property {LedgerAccount[]} accounts
  * @property {LedgerCategory[]} categories
- * @property {TransactionRecord[]} transactions
- * @property {TransactionRecord[]} seedTransactions
+ * @property {LocalTransactionRecord[]} transactions
+ * @property {LocalTransactionRecord[]} seedTransactions
  * @property {Record<string, MonthlyStatistics>} statisticsByMonth
  * @property {string} syncUpdatedAt
  */
@@ -44,8 +45,8 @@ const DEFAULT_ENTRY_TYPE = 'expense';
  * @typedef {{ type: 'closeQuickAdd' }} CloseQuickAddAction
  * @typedef {{ type: 'setSelectedEntryType', entryType: EntryType }} SetSelectedEntryTypeAction
  * @typedef {{ type: 'setCurrentMonth', month: string }} SetCurrentMonthAction
- * @typedef {{ type: 'addTransaction', transaction: TransactionRecord }} AddTransactionAction
- * @typedef {{ type: 'updateTransaction', transactionId: string, updates: Partial<TransactionRecord> }} UpdateTransactionAction
+ * @typedef {{ type: 'addTransaction', transaction: LocalTransactionRecord }} AddTransactionAction
+ * @typedef {{ type: 'updateTransaction', transactionId: string, updates: Partial<LocalTransactionRecord> }} UpdateTransactionAction
  * @typedef {{ type: 'deleteTransaction', transactionId: string }} DeleteTransactionAction
  * @typedef {{ type: 'updateTransactionSyncStatus', transactionId: string, syncStatus: import('../types/accounting').SyncStatus, updatedAt?: string | undefined }} UpdateTransactionSyncStatusAction
  * @typedef {{ type: 'addCategory', category: LedgerCategory }} AddCategoryAction
@@ -90,7 +91,7 @@ function cloneCategories() {
   return mockCategories.map((category) => ({ ...category }));
 }
 
-/** @returns {TransactionRecord[]} */
+/** @returns {LocalTransactionRecord[]} */
 function cloneTransactions() {
   return mockTransactions.map((transaction) => ({ ...transaction }));
 }
@@ -111,11 +112,19 @@ function getMonthKey(transactionAt) {
 }
 
 /**
- * @param {TransactionRecord[]} transactions
- * @returns {TransactionRecord[]}
+ * @param {LocalTransactionRecord[]} transactions
+ * @returns {LocalTransactionRecord[]}
  */
 function sortTransactionsDescending(transactions) {
   return [...transactions].sort((left, right) => right.transactionAt.localeCompare(left.transactionAt));
+}
+
+/**
+ * @param {TransactionRecord & { deletedAt?: string | null | undefined }} transaction
+ * @returns {boolean}
+ */
+function isDeletedTransaction(transaction) {
+  return transaction.deletedAt != null;
 }
 
 /**
@@ -225,7 +234,7 @@ function buildBreakdownFromMap(amounts, total) {
 /**
  * @param {SummaryDelta} summary
  * @param {Map<CategoryId, number>} breakdown
- * @param {TransactionRecord | undefined} transaction
+ * @param {LocalTransactionRecord | undefined} transaction
  * @param {1 | -1} direction
  */
 function applyTransactionDelta(summary, breakdown, transaction, direction) {
@@ -265,13 +274,13 @@ function applyTransactionDelta(summary, breakdown, transaction, direction) {
  * @returns {MonthDelta}
  */
 function calculateMonthDelta(state, month) {
-  /** @type {Map<string, TransactionRecord>} */
+  /** @type {Map<string, LocalTransactionRecord>} */
   const currentById = new Map();
-  /** @type {Map<string, TransactionRecord>} */
+  /** @type {Map<string, LocalTransactionRecord>} */
   const seedById = new Map();
 
   state.transactions.forEach((transaction) => {
-    if (getMonthKey(transaction.transactionAt) === month) {
+    if (!isDeletedTransaction(transaction) && getMonthKey(transaction.transactionAt) === month) {
       currentById.set(transaction.id, transaction);
     }
   });
@@ -411,8 +420,14 @@ export function mockAppReducer(state, action) {
     case 'deleteTransaction':
       return {
         ...state,
-        transactions: state.transactions.filter(
-          (transaction) => transaction.id !== action.transactionId
+        transactions: state.transactions.map((transaction) =>
+          transaction.id === action.transactionId
+            ? {
+                ...transaction,
+                deletedAt: transaction.deletedAt ?? new Date().toISOString(),
+                syncStatus: 'pending',
+              }
+            : transaction
         ),
       };
     case 'updateTransactionSyncStatus':
@@ -452,7 +467,9 @@ export function selectAvailableMonths(state) {
   const months = new Set(Object.keys(state.statisticsByMonth));
 
   state.transactions.forEach((transaction) => {
-    months.add(getMonthKey(transaction.transactionAt));
+    if (!isDeletedTransaction(transaction)) {
+      months.add(getMonthKey(transaction.transactionAt));
+    }
   });
 
   return [...months].sort((left, right) => right.localeCompare(left));
@@ -460,11 +477,14 @@ export function selectAvailableMonths(state) {
 
 /**
  * @param {MockAppState} state
- * @returns {TransactionRecord[]}
+ * @returns {LocalTransactionRecord[]}
  */
 export function selectCurrentMonthTransactions(state) {
   return sortTransactionsDescending(
-    state.transactions.filter((transaction) => getMonthKey(transaction.transactionAt) === state.currentMonth)
+    state.transactions.filter(
+      (transaction) =>
+        !isDeletedTransaction(transaction) && getMonthKey(transaction.transactionAt) === state.currentMonth
+    )
   );
 }
 
@@ -491,7 +511,7 @@ export function selectCurrentMonthStatistics(state) {
 export function selectAccountSummaries(state) {
   return state.accounts.map((account) => {
     const delta = state.transactions.reduce((sum, transaction) => {
-      if (transaction.accountId !== account.id) {
+      if (transaction.accountId !== account.id || isDeletedTransaction(transaction)) {
         return sum;
       }
 
@@ -510,8 +530,12 @@ export function selectAccountSummaries(state) {
  * @returns {SyncSummary}
  */
 export function selectSyncSummary(state) {
-  const pendingCount = state.transactions.filter((transaction) => transaction.syncStatus === 'pending').length;
-  const failedCount = state.transactions.filter((transaction) => transaction.syncStatus === 'failed').length;
+  const pendingCount = state.transactions.filter(
+    (transaction) => !isDeletedTransaction(transaction) && transaction.syncStatus === 'pending'
+  ).length;
+  const failedCount = state.transactions.filter(
+    (transaction) => !isDeletedTransaction(transaction) && transaction.syncStatus === 'failed'
+  ).length;
 
   return {
     status: getSyncStatus(pendingCount, failedCount),
@@ -547,7 +571,7 @@ export function selectCategoriesByType(state, entryType) {
 /**
  * @param {MockAppState} state
  * @param {string} transactionId
- * @returns {TransactionRecord | null}
+ * @returns {LocalTransactionRecord | null}
  */
 export function selectTransactionById(state, transactionId) {
   return state.transactions.find((transaction) => transaction.id === transactionId) ?? null;

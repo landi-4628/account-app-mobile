@@ -56,6 +56,18 @@ export default function ProfileScreen() {
     { label: accountingCopy.profile.ledger, value: user.ledgerName },
     { label: accountingCopy.profile.email, value: user.email },
   ];
+  const managementRows = [
+    {
+      title: 'Profile hub',
+      subtitle: 'Open edit, password, account, and category screens',
+      onPress: () => router.push('/profile'),
+    },
+    {
+      title: 'Authentication',
+      subtitle: 'Preview login and register routes',
+      onPress: () => router.push('/auth/login'),
+    },
+  ];
 
   return (
     <AccountingScreen>
@@ -86,6 +98,20 @@ export default function ProfileScreen() {
                 ...account,
                 type: getAccountTypeLabel(account.type),
               }}
+            />
+          ))}
+        </View>
+      </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Manage</Text>
+        <View style={styles.sectionBody}>
+          {managementRows.map((row) => (
+            <ProfileEntryCard
+              key={row.title}
+              title={row.title}
+              subtitle={row.subtitle}
+              rows={[]}
+              onPress={row.onPress}
             />
           ))}
         </View>

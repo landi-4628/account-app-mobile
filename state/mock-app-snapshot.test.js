@@ -26,6 +26,7 @@ test('selects the minimal persisted snapshot from full app state', () => {
         note: 'Runtime',
         transactionAt: '2026-04-12T13:00:00+08:00',
         syncStatus: 'pending',
+        deletedAt: '2026-05-13T10:05:00+08:00',
       },
     ],
     accounts: [
@@ -180,6 +181,7 @@ test('applies a valid snapshot onto initial state without replacing seeded found
         note: 'Restored',
         transactionAt: '2026-04-15T09:00:00+08:00',
         syncStatus: 'synced',
+        deletedAt: null,
       },
     ],
     accounts: [

@@ -145,3 +145,35 @@ test('noop adapter always resolves empty reads and ignored writes', async () => 
     })
   );
 });
+
+test('reads, writes, and clears auth session state as json when storage is available', async () => {
+  /** @type {{ key: string | null, value: string | null, removed: string | null }} */
+  const captured = { key: null, value: null, removed: null };
+  const session = {
+    userId: 'user-9',
+    accessToken: 'access-9',
+    refreshToken: null,
+    encryptionKey: 'remote-session',
+    expiresAt: '2026-05-13T13:00:00.000Z',
+    updatedAt: '2026-05-13T12:00:00.000Z',
+  };
+  const storage = createMockAppStorageAdapter({
+    getItem: async () => JSON.stringify(session),
+    setItem: async (key, value) => {
+      captured.key = key;
+      captured.value = value;
+    },
+    removeItem: async (key) => {
+      captured.removed = key;
+    },
+  });
+
+  assert.deepEqual(await storage.readAuthSession('auth-session-key'), session);
+
+  await storage.writeAuthSession('auth-session-key', session);
+  await storage.clearAuthSession('auth-session-key');
+
+  assert.equal(captured.key, 'auth-session-key');
+  assert.equal(captured.value, JSON.stringify(session));
+  assert.equal(captured.removed, 'auth-session-key');
+});

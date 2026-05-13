@@ -7,7 +7,12 @@ import { parseMockAppSnapshot } from './mock-app-snapshot.js';
  * @typedef {{
  *   getItem: (key: string) => Promise<string | null>,
  *   setItem: (key: string, value: string) => Promise<void>,
+ *   removeItem?: ((key: string) => Promise<void>) | undefined,
  * }} StorageLike
+ */
+
+/**
+ * @typedef {import('../data/repositories/auth-repository.js').AuthSession} AuthSession
  */
 
 /**
@@ -100,6 +105,70 @@ export function createMockAppStorageAdapter(storage) {
         // Storage is optional in the mock app runtime. Ignore unavailable native modules.
       }
     },
+
+    /**
+     * @param {string} key
+     * @returns {Promise<AuthSession | null>}
+     */
+    async readAuthSession(key) {
+      try {
+        const raw = await storage.getItem(key);
+        if (!raw) {
+          return null;
+        }
+
+        const parsed = JSON.parse(raw);
+        if (
+          !parsed ||
+          typeof parsed.userId !== 'string' ||
+          typeof parsed.accessToken !== 'string' ||
+          typeof parsed.encryptionKey !== 'string' ||
+          typeof parsed.expiresAt !== 'string' ||
+          typeof parsed.updatedAt !== 'string'
+        ) {
+          return null;
+        }
+
+        return {
+          userId: parsed.userId,
+          accessToken: parsed.accessToken,
+          refreshToken: parsed.refreshToken == null ? null : String(parsed.refreshToken),
+          encryptionKey: parsed.encryptionKey,
+          expiresAt: parsed.expiresAt,
+          updatedAt: parsed.updatedAt,
+        };
+      } catch {
+        return null;
+      }
+    },
+
+    /**
+     * @param {string} key
+     * @param {AuthSession} value
+     */
+    async writeAuthSession(key, value) {
+      try {
+        await storage.setItem(key, JSON.stringify(value));
+      } catch {
+        // Storage is optional in the mock app runtime. Ignore unavailable native modules.
+      }
+    },
+
+    /**
+     * @param {string} key
+     */
+    async clearAuthSession(key) {
+      try {
+        if (typeof storage.removeItem === 'function') {
+          await storage.removeItem(key);
+          return;
+        }
+
+        await storage.setItem(key, '');
+      } catch {
+        // Storage is optional in the mock app runtime. Ignore unavailable native modules.
+      }
+    },
   };
 }
 
@@ -117,5 +186,10 @@ export function createNoopStorageAdapter() {
       return null;
     },
     async writeAppSnapshot() {},
+    async readAuthSession() {
+      return null;
+    },
+    async writeAuthSession() {},
+    async clearAuthSession() {},
   };
 }

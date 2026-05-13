@@ -205,12 +205,18 @@ test('deletes a transaction and updates derived balances and counts', () => {
   const monthData = selectCurrentMonthData(state);
   const wechatAccount = selectAccountSummaries(state).find((account) => account.id === 'acc-wechat');
   const syncSummary = selectSyncSummary(state);
+  const deletedTransaction = state.transactions.find((item) => item.id === 'tx-coffee');
 
   assert.equal(monthData.summary.expense, 16680);
   assert.equal(monthData.summary.balance, 1443320);
   assert.equal(monthData.summary.failedCount, 0);
+  assert.equal(monthData.summary.pendingCount, 1);
+  assert.equal(monthData.transactions.some((item) => item.id === 'tx-coffee'), false);
+  assert.equal(deletedTransaction?.syncStatus, 'pending');
+  assert.equal(typeof deletedTransaction?.deletedAt, 'string');
   assert.equal(wechatAccount?.currentBalance, 93100);
   assert.equal(syncSummary.status, 'pending');
+  assert.equal(syncSummary.pendingCount, 1);
   assert.equal(syncSummary.failedCount, 0);
 });
 
@@ -384,6 +390,7 @@ test('hydrates a persisted snapshot into state while keeping seeded foundations'
           note: 'Restored',
           transactionAt: '2026-04-22T09:00:00+08:00',
           syncStatus: 'pending',
+          deletedAt: '2026-05-13T11:05:00+08:00',
         },
       ],
       accounts: [
@@ -424,6 +431,7 @@ test('hydrates a persisted snapshot into state while keeping seeded foundations'
       note: 'Restored',
       transactionAt: '2026-04-22T09:00:00+08:00',
       syncStatus: 'pending',
+      deletedAt: '2026-05-13T11:05:00+08:00',
     },
   ]);
   assert.equal(state.accounts.at(-1)?.id, 'acc-custom-wallet');
