@@ -106,7 +106,8 @@ const MockAppContext =
 const MOCK_APP_SYNC_PREFERENCES_STORAGE_KEY = 'mock-app-sync-preferences';
 const MOCK_APP_STATE_SNAPSHOT_STORAGE_KEY = 'mock-app-state-snapshot';
 const MOCK_APP_AUTH_SESSION_STORAGE_KEY = 'mock-app-auth-session';
-const REMOTE_API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:3000';
+const REMOTE_API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://192.168.5.119:3000';
 
 /**
  * @param {NewTransactionInput & { id?: string | undefined, syncStatus?: import('../types/accounting').SyncStatus | undefined }} input
