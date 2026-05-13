@@ -1,4 +1,13 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import { createApiClient } from '../lib/api-client.js';
 import { createAuthApi } from '../lib/auth-api.js';
 import {
@@ -45,9 +54,9 @@ import { getSyncableTransactions, shouldAutoSync } from './mock-app-sync-support
  * @typedef {ReturnType<typeof createInitialMockAppState>} MockAppState
  * @typedef {ReturnType<typeof selectCurrentMonthData>} CurrentMonthData
  * @typedef {import('../lib/auth-api.js').RemoteAuthUser} RemoteAuthUser
- * @typedef {LedgerAccount & { remoteId?: number | undefined, updatedAt?: string | undefined, deletedAt?: string | null }} LocalLedgerAccount
- * @typedef {LedgerCategory & { remoteId?: number | undefined, updatedAt?: string | undefined, deletedAt?: string | null, color?: string | undefined }} LocalLedgerCategory
- * @typedef {TransactionRecord & { remoteId?: number | undefined, updatedAt?: string | undefined, deletedAt?: string | null, syncError?: string | null, syncedAt?: string | null }} LocalTransactionRecord
+ * @typedef {LedgerAccount & { remoteId?: string | undefined, updatedAt?: string | undefined, deletedAt?: string | null }} LocalLedgerAccount
+ * @typedef {LedgerCategory & { remoteId?: string | undefined, updatedAt?: string | undefined, deletedAt?: string | null, color?: string | undefined }} LocalLedgerCategory
+ * @typedef {TransactionRecord & { remoteId?: string | undefined, updatedAt?: string | undefined, deletedAt?: string | null, syncError?: string | null, syncedAt?: string | null }} LocalTransactionRecord
  */
 
 /**
@@ -145,6 +154,7 @@ export function MockAppProvider({ children }) {
      *   defaultAccountId?: string | undefined,
      * }) | null} */ (null)
   );
+  const lastAuthenticatedUserIdRef = useRef(/** @type {string | null} */ (null));
 
   const authApi = useMemo(
     () =>
@@ -200,7 +210,15 @@ export function MockAppProvider({ children }) {
           return true;
         }
 
-        return false;
+        dispatch({
+          type: 'hydrateSnapshot',
+          snapshot: buildSnapshotFromRemotePayload(payload, {
+            currentMonth: snapshotBaseState.currentMonth,
+            selectedEntryType: snapshotBaseState.selectedEntryType,
+            fallbackSyncUpdatedAt: snapshotBaseState.syncUpdatedAt,
+          }),
+        });
+        return true;
       }
 
       dispatch({
@@ -317,6 +335,14 @@ export function MockAppProvider({ children }) {
       active = false;
     };
   }, [authApi, authSession?.accessToken, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+
+    lastAuthenticatedUserIdRef.current = authSession?.userId ?? null;
+  }, [authSession?.userId, hydrated]);
 
   useEffect(() => {
     if (!hydrated || !remoteAccessToken || remoteLedgerId == null) {
@@ -577,12 +603,38 @@ export function MockAppProvider({ children }) {
         syncPendingTransactions,
         login: async ({ email, password }) => {
           const result = await authApi.login({ email, password });
+          const previousUserId = lastAuthenticatedUserIdRef.current;
+          if (previousUserId != null && previousUserId !== result.session.userId) {
+            dispatch({
+              type: 'hydrateSnapshot',
+              snapshot: buildSnapshotFromRemotePayload({ data: {} }, {
+                currentMonth: state.currentMonth,
+                selectedEntryType: state.selectedEntryType,
+                fallbackSyncUpdatedAt: state.syncUpdatedAt,
+              }),
+            });
+          }
+
+          lastAuthenticatedUserIdRef.current = result.session.userId;
           setAuthSession(result.session);
           setRemoteUser(result.user);
           return result.user;
         },
         register: async ({ name, email, password }) => {
           const result = await authApi.register({ name, email, password });
+          const previousUserId = lastAuthenticatedUserIdRef.current;
+          if (previousUserId != null && previousUserId !== result.session.userId) {
+            dispatch({
+              type: 'hydrateSnapshot',
+              snapshot: buildSnapshotFromRemotePayload({ data: {} }, {
+                currentMonth: state.currentMonth,
+                selectedEntryType: state.selectedEntryType,
+                fallbackSyncUpdatedAt: state.syncUpdatedAt,
+              }),
+            });
+          }
+
+          lastAuthenticatedUserIdRef.current = result.session.userId;
           setAuthSession(result.session);
           setRemoteUser(result.user);
           return result.user;

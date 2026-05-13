@@ -9,12 +9,16 @@ import {
   hasRemoteLedgerData,
 } from '../lib/ledger-sync.js';
 
+const REMOTE_ACCOUNT_ID = '10000000-0000-4000-8000-000000000012';
+const REMOTE_CATEGORY_ID = '20000000-0000-4000-8000-000000000034';
+const REMOTE_TX_ID = '70000000-0000-4000-8000-000000000077';
+
 test('builds definition sync payloads with client ids and optional remote ids', () => {
   const payload = buildDefinitionsPushPayload(
     [
       {
         id: 'acc-cash',
-        remoteId: 12,
+        remoteId: REMOTE_ACCOUNT_ID,
         name: 'Cash',
         type: 'cash',
         initialBalance: 5000,
@@ -34,7 +38,7 @@ test('builds definition sync payloads with client ids and optional remote ids', 
   assert.deepEqual(payload, {
     accounts: [
       {
-        id: 12,
+        id: REMOTE_ACCOUNT_ID,
         client_id: 'acc-cash',
         name: 'Cash',
         type: 'cash',
@@ -63,7 +67,7 @@ test('builds transaction sync payloads from remote reference maps', () => {
     [
       {
         id: 'tx-1',
-        remoteId: 77,
+        remoteId: REMOTE_TX_ID,
         type: 'expense',
         amount: 3200,
         accountId: 'acc-cash',
@@ -73,18 +77,18 @@ test('builds transaction sync payloads from remote reference maps', () => {
       },
     ],
     {
-      accountIds: new Map([['acc-cash', 12]]),
-      categoryIds: new Map([['cat-food', 34]]),
+      accountIds: new Map([['acc-cash', REMOTE_ACCOUNT_ID]]),
+      categoryIds: new Map([['cat-food', REMOTE_CATEGORY_ID]]),
     }
   );
 
   assert.deepEqual(payload, {
     transactions: [
       {
-        id: 77,
+        id: REMOTE_TX_ID,
         client_id: 'tx-1',
-        account_id: 12,
-        category_id: 34,
+        account_id: REMOTE_ACCOUNT_ID,
+        category_id: REMOTE_CATEGORY_ID,
         kind: 'expense',
         amount: 3200,
         note: 'Lunch',
@@ -111,8 +115,8 @@ test('marks deleted local transactions as tombstones in sync payloads', () => {
       },
     ],
     {
-      accountIds: new Map([['acc-cash', 12]]),
-      categoryIds: new Map([['cat-food', 34]]),
+      accountIds: new Map([['acc-cash', REMOTE_ACCOUNT_ID]]),
+      categoryIds: new Map([['cat-food', REMOTE_CATEGORY_ID]]),
     }
   );
 
@@ -121,8 +125,8 @@ test('marks deleted local transactions as tombstones in sync payloads', () => {
       {
         id: undefined,
         client_id: 'tx-2',
-        account_id: 12,
-        category_id: 34,
+        account_id: REMOTE_ACCOUNT_ID,
+        category_id: REMOTE_CATEGORY_ID,
         kind: 'expense',
         amount: 1800,
         note: 'Deleted lunch',
@@ -140,7 +144,7 @@ test('maps pulled remote ledger data into a local snapshot keyed by client ids',
       server_time: '2026-05-13T13:00:00.000Z',
       accounts: [
         {
-          id: 12,
+          id: REMOTE_ACCOUNT_ID,
           client_id: 'acc-cash',
           name: 'Cash',
           type: 'cash',
@@ -151,7 +155,7 @@ test('maps pulled remote ledger data into a local snapshot keyed by client ids',
       ],
       categories: [
         {
-          id: 34,
+          id: REMOTE_CATEGORY_ID,
           client_id: 'cat-food',
           name: 'Food',
           kind: 'expense',
@@ -161,10 +165,10 @@ test('maps pulled remote ledger data into a local snapshot keyed by client ids',
       ],
       transactions: [
         {
-          id: 77,
+          id: REMOTE_TX_ID,
           client_id: 'tx-1',
-          account_id: 12,
-          category_id: 34,
+          account_id: REMOTE_ACCOUNT_ID,
+          category_id: REMOTE_CATEGORY_ID,
           kind: 'expense',
           amount: '3200.00',
           note: 'Lunch',
@@ -183,7 +187,7 @@ test('maps pulled remote ledger data into a local snapshot keyed by client ids',
   });
 
   assert.equal(snapshot.accounts[0]?.id, 'acc-cash');
-  assert.equal(snapshot.accounts[0]?.remoteId, 12);
+  assert.equal(snapshot.accounts[0]?.remoteId, REMOTE_ACCOUNT_ID);
   assert.equal(snapshot.categories[0]?.id, 'cat-food');
   assert.equal(snapshot.transactions[0]?.accountId, 'acc-cash');
   assert.equal(snapshot.transactions[0]?.categoryId, 'cat-food');
@@ -194,8 +198,8 @@ test('maps pulled remote ledger data into a local snapshot keyed by client ids',
 test('extracts remote reference maps and reports whether the ledger has remote data', () => {
   const payload = {
     data: {
-      accounts: [{ id: 12, client_id: 'acc-cash' }],
-      categories: [{ id: 34, client_id: 'cat-food' }],
+      accounts: [{ id: REMOTE_ACCOUNT_ID, client_id: 'acc-cash' }],
+      categories: [{ id: REMOTE_CATEGORY_ID, client_id: 'cat-food' }],
       transactions: [],
     },
   };
@@ -203,6 +207,6 @@ test('extracts remote reference maps and reports whether the ledger has remote d
   const refs = buildRemoteReferenceMaps(payload);
 
   assert.equal(hasRemoteLedgerData(payload), true);
-  assert.equal(refs.accountIds.get('acc-cash'), 12);
-  assert.equal(refs.categoryIds.get('cat-food'), 34);
+  assert.equal(refs.accountIds.get('acc-cash'), REMOTE_ACCOUNT_ID);
+  assert.equal(refs.categoryIds.get('cat-food'), REMOTE_CATEGORY_ID);
 });
