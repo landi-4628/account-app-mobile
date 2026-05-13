@@ -7,10 +7,10 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 const TAB_TITLES = {
-  index: '\u9996\u9875',
-  details: '\u660e\u7ec6',
-  statistics: '\u7edf\u8ba1',
-  profile: '\u6211\u7684',
+  index: '首页',
+  details: '明细',
+  statistics: '统计',
+  profile: '我的',
 } as const;
 
 export default function TabLayout() {

@@ -366,3 +366,69 @@ test('merges persisted custom definitions without duplicating seeded ids', () =>
   assert.equal(merged.categories.at(-1)?.id, 'cat-custom-snacks');
   assert.equal(merged.accounts.at(-1)?.id, 'acc-custom-wallet');
 });
+
+test('hydrates a persisted snapshot into state while keeping seeded foundations', () => {
+  const initialState = createInitialMockAppState();
+  const state = mockAppReducer(initialState, {
+    type: 'hydrateSnapshot',
+    snapshot: {
+      currentMonth: '2026-04',
+      selectedEntryType: 'income',
+      transactions: [
+        {
+          id: 'tx-restored',
+          type: 'income',
+          amount: 8888,
+          categoryId: 'cat-freelance',
+          accountId: 'acc-bank',
+          note: 'Restored',
+          transactionAt: '2026-04-22T09:00:00+08:00',
+          syncStatus: 'pending',
+        },
+      ],
+      accounts: [
+        ...initialState.accounts,
+        {
+          id: 'acc-custom-wallet',
+          name: 'Wallet',
+          type: 'cash',
+          initialBalance: 0,
+          currentBalance: 0,
+          isActive: true,
+          isCustom: true,
+        },
+      ],
+      categories: [
+        ...initialState.categories,
+        {
+          id: 'cat-custom-bonus',
+          name: 'Bonus',
+          type: 'income',
+          isActive: true,
+          isCustom: true,
+        },
+      ],
+      syncUpdatedAt: '2026-05-13T11:00:00+08:00',
+    },
+  });
+
+  assert.equal(state.currentMonth, '2026-04');
+  assert.equal(state.selectedEntryType, 'income');
+  assert.deepEqual(state.transactions, [
+    {
+      id: 'tx-restored',
+      type: 'income',
+      amount: 8888,
+      categoryId: 'cat-freelance',
+      accountId: 'acc-bank',
+      note: 'Restored',
+      transactionAt: '2026-04-22T09:00:00+08:00',
+      syncStatus: 'pending',
+    },
+  ]);
+  assert.equal(state.accounts.at(-1)?.id, 'acc-custom-wallet');
+  assert.equal(state.categories.at(-1)?.id, 'cat-custom-bonus');
+  assert.equal(state.syncUpdatedAt, '2026-05-13T11:00:00+08:00');
+  assert.deepEqual(state.seedTransactions, initialState.seedTransactions);
+  assert.deepEqual(state.statisticsByMonth, initialState.statisticsByMonth);
+});

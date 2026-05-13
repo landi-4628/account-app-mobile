@@ -1,0 +1,223 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import { createInitialMockAppState } from './mock-app-state.js';
+import {
+  applyMockAppSnapshot,
+  parseMockAppSnapshot,
+  selectMockAppSnapshot,
+} from './mock-app-snapshot.js';
+
+test('selects the minimal persisted snapshot from full app state', () => {
+  const initialState = createInitialMockAppState();
+  const state = {
+    ...initialState,
+    currentMonth: '2026-04',
+    selectedEntryType: 'income',
+    quickAddOpen: true,
+    syncUpdatedAt: '2026-05-13T10:00:00+08:00',
+    transactions: [
+      {
+        id: 'tx-runtime-income',
+        type: 'income',
+        amount: 8800,
+        categoryId: 'cat-freelance',
+        accountId: 'acc-bank',
+        note: 'Runtime',
+        transactionAt: '2026-04-12T13:00:00+08:00',
+        syncStatus: 'pending',
+      },
+    ],
+    accounts: [
+      ...initialState.accounts,
+      {
+        id: 'acc-runtime-wallet',
+        name: 'Wallet',
+        type: 'cash',
+        initialBalance: 0,
+        currentBalance: 0,
+        isActive: true,
+        isCustom: true,
+      },
+    ],
+    categories: [
+      ...initialState.categories,
+      {
+        id: 'cat-runtime-bonus',
+        name: 'Bonus',
+        type: 'income',
+        isActive: true,
+        isCustom: true,
+      },
+    ],
+  };
+
+  assert.deepEqual(selectMockAppSnapshot(state), {
+    currentMonth: '2026-04',
+    selectedEntryType: 'income',
+    transactions: state.transactions,
+    accounts: state.accounts,
+    categories: state.categories,
+    syncUpdatedAt: '2026-05-13T10:00:00+08:00',
+  });
+});
+
+test('parses a valid raw snapshot and returns null for missing top-level fields', () => {
+  const validRaw = JSON.stringify({
+    currentMonth: '2026-05',
+    selectedEntryType: 'expense',
+    transactions: [],
+    accounts: [],
+    categories: [],
+    syncUpdatedAt: '2026-05-13T10:00:00+08:00',
+  });
+
+  assert.deepEqual(parseMockAppSnapshot(validRaw), {
+    currentMonth: '2026-05',
+    selectedEntryType: 'expense',
+    transactions: [],
+    accounts: [],
+    categories: [],
+    syncUpdatedAt: '2026-05-13T10:00:00+08:00',
+  });
+  assert.equal(
+    parseMockAppSnapshot(
+      JSON.stringify({
+        currentMonth: '2026-05',
+        selectedEntryType: 'expense',
+        transactions: [],
+        accounts: [],
+        syncUpdatedAt: '2026-05-13T10:00:00+08:00',
+      })
+    ),
+    null
+  );
+});
+
+test('returns null when any persisted array contains an invalid item', () => {
+  assert.equal(
+    parseMockAppSnapshot(
+      JSON.stringify({
+        currentMonth: '2026-05',
+        selectedEntryType: 'expense',
+        transactions: [
+          {
+            id: 'tx-invalid',
+            type: 'expense',
+            amount: '3200',
+            categoryId: 'cat-food',
+            accountId: 'acc-cash',
+            note: 'Bad amount',
+            transactionAt: '2026-05-13T10:00:00+08:00',
+            syncStatus: 'pending',
+          },
+        ],
+        accounts: [],
+        categories: [],
+        syncUpdatedAt: '2026-05-13T10:00:00+08:00',
+      })
+    ),
+    null
+  );
+
+  assert.equal(
+    parseMockAppSnapshot(
+      JSON.stringify({
+        currentMonth: '2026-05',
+        selectedEntryType: 'expense',
+        transactions: [],
+        accounts: [
+          {
+            id: 'acc-invalid',
+            name: 'Wallet',
+            type: 'cash',
+            initialBalance: 0,
+            currentBalance: 0,
+            isActive: 'yes',
+          },
+        ],
+        categories: [],
+        syncUpdatedAt: '2026-05-13T10:00:00+08:00',
+      })
+    ),
+    null
+  );
+
+  assert.equal(
+    parseMockAppSnapshot(
+      JSON.stringify({
+        currentMonth: '2026-05',
+        selectedEntryType: 'expense',
+        transactions: [],
+        accounts: [],
+        categories: [
+          {
+            id: 'cat-invalid',
+            name: 'Broken',
+            type: 'expense',
+            isActive: 'true',
+          },
+        ],
+        syncUpdatedAt: '2026-05-13T10:00:00+08:00',
+      })
+    ),
+    null
+  );
+});
+
+test('applies a valid snapshot onto initial state without replacing seeded foundations', () => {
+  const initialState = createInitialMockAppState();
+  const snapshot = {
+    currentMonth: '2026-04',
+    selectedEntryType: 'income',
+    transactions: [
+      {
+        id: 'tx-restored',
+        type: 'income',
+        amount: 500000,
+        categoryId: 'cat-salary',
+        accountId: 'acc-bank',
+        note: 'Restored',
+        transactionAt: '2026-04-15T09:00:00+08:00',
+        syncStatus: 'synced',
+      },
+    ],
+    accounts: [
+      ...initialState.accounts,
+      {
+        id: 'acc-restored-wallet',
+        name: 'Wallet',
+        type: 'cash',
+        initialBalance: 0,
+        currentBalance: 0,
+        isActive: true,
+        isCustom: true,
+      },
+    ],
+    categories: [
+      ...initialState.categories,
+      {
+        id: 'cat-restored-bonus',
+        name: 'Bonus',
+        type: 'income',
+        isActive: true,
+        isCustom: true,
+      },
+    ],
+    syncUpdatedAt: '2026-05-13T11:00:00+08:00',
+  };
+
+  const restoredState = applyMockAppSnapshot(initialState, snapshot);
+
+  assert.notEqual(restoredState, initialState);
+  assert.equal(restoredState.currentMonth, '2026-04');
+  assert.equal(restoredState.selectedEntryType, 'income');
+  assert.equal(restoredState.quickAddOpen, false);
+  assert.deepEqual(restoredState.transactions, snapshot.transactions);
+  assert.deepEqual(restoredState.accounts, snapshot.accounts);
+  assert.deepEqual(restoredState.categories, snapshot.categories);
+  assert.equal(restoredState.syncUpdatedAt, '2026-05-13T11:00:00+08:00');
+  assert.deepEqual(restoredState.seedTransactions, initialState.seedTransactions);
+  assert.deepEqual(restoredState.statisticsByMonth, initialState.statisticsByMonth);
+  assert.deepEqual(restoredState.user, initialState.user);
+});

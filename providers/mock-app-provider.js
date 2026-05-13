@@ -1,5 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useContext, useEffect, useMemo, useReducer, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useState } from 'react';
 
 import {
   createInitialMockAppState,
@@ -15,9 +14,9 @@ import {
   MOCK_APP_CUSTOM_DEFINITIONS_STORAGE_KEY,
   selectPersistedCustomDefinitions,
 } from '../state/mock-app-persistence-support.js';
-import {
-  createMockAppStorageAdapter,
-} from '../state/mock-app-storage.js';
+import { mockAppRuntimeStorageAdapter } from '../state/mock-app-runtime-storage.js';
+import { selectMockAppSnapshot } from '../state/mock-app-snapshot.js';
+import { getSyncableTransactions, shouldAutoSync } from './mock-app-sync-support.js';
 
 /**
  * @typedef {import('../types/accounting').EntryType} EntryType
@@ -44,6 +43,8 @@ import {
  * @property {(transactionId: string, syncStatus: import('../types/accounting').SyncStatus, updatedAt?: string | undefined) => void} updateTransactionSyncStatus
  * @property {(input: { name: string, type: EntryType }) => LedgerCategory} addCategory
  * @property {(input: { name: string, type: import('../types/accounting').AccountType }) => LedgerAccount} addAccount
+ * @property {(enabled: boolean) => void} setAutoSyncEnabled
+ * @property {() => Promise<void>} syncPendingTransactions
  */
 
 /**
@@ -65,6 +66,8 @@ import {
  * @property {CurrentMonthData} currentMonthData
  * @property {LedgerAccount[]} accountSummaries
  * @property {SyncSummary} syncSummary
+ * @property {boolean} autoSyncEnabled
+ * @property {boolean} syncInFlight
  * @property {string[]} availableMonths
  * @property {MonthlyStatistics[]} seededMonthlyStatistics
  * @property {MockAppActions} actions
@@ -75,7 +78,8 @@ const MockAppContext =
   /** @type {React.Context<MockAppContextValue | null>} */ (
     createContext(/** @type {MockAppContextValue | null} */ (null))
   );
-const persistedDefinitionStorage = createMockAppStorageAdapter(AsyncStorage);
+const MOCK_APP_SYNC_PREFERENCES_STORAGE_KEY = 'mock-app-sync-preferences';
+const MOCK_APP_STATE_SNAPSHOT_STORAGE_KEY = 'mock-app-state-snapshot';
 
 /**
  * @param {NewTransactionInput & { id?: string | undefined, syncStatus?: import('../types/accounting').SyncStatus | undefined }} input
@@ -101,27 +105,42 @@ function createTransactionRecord(input) {
 export function MockAppProvider({ children }) {
   const [state, dispatch] = useReducer(mockAppReducer, undefined, createInitialMockAppState);
   const [hydrated, setHydrated] = useState(false);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
+  const [syncInFlight, setSyncInFlight] = useState(false);
 
   const currentMonthData = useMemo(() => selectCurrentMonthData(state), [state]);
   const accountSummaries = useMemo(() => selectAccountSummaries(state), [state]);
   const syncSummary = useMemo(() => selectSyncSummary(state), [state]);
   const seededMonthlyStatistics = useMemo(() => selectSeededMonthlyStatistics(), []);
   const persistedDefinitions = useMemo(() => selectPersistedCustomDefinitions(state), [state]);
+  const syncableTransactions = useMemo(() => getSyncableTransactions(state.transactions), [state.transactions]);
 
   useEffect(() => {
     let active = true;
 
-    async function hydrateCustomDefinitions() {
+    async function hydrateRuntimeState() {
       try {
-        const definitions = await persistedDefinitionStorage.readCustomDefinitions(
-          MOCK_APP_CUSTOM_DEFINITIONS_STORAGE_KEY
-        );
+        const [snapshot, definitions, syncPreferences] = await Promise.all([
+          mockAppRuntimeStorageAdapter.readAppSnapshot(MOCK_APP_STATE_SNAPSHOT_STORAGE_KEY),
+          mockAppRuntimeStorageAdapter.readCustomDefinitions(
+            MOCK_APP_CUSTOM_DEFINITIONS_STORAGE_KEY
+          ),
+          mockAppRuntimeStorageAdapter.readSyncPreferences(MOCK_APP_SYNC_PREFERENCES_STORAGE_KEY),
+        ]);
 
         if (active) {
-          dispatch({
-            type: 'hydrateCustomDefinitions',
-            definitions,
-          });
+          if (snapshot) {
+            dispatch({
+              type: 'hydrateSnapshot',
+              snapshot,
+            });
+          } else {
+            dispatch({
+              type: 'hydrateCustomDefinitions',
+              definitions,
+            });
+          }
+          setAutoSyncEnabled(syncPreferences.autoSyncEnabled);
         }
       } finally {
         if (active) {
@@ -130,7 +149,7 @@ export function MockAppProvider({ children }) {
       }
     }
 
-    void hydrateCustomDefinitions();
+    void hydrateRuntimeState();
 
     return () => {
       active = false;
@@ -142,11 +161,76 @@ export function MockAppProvider({ children }) {
       return;
     }
 
-    void persistedDefinitionStorage.writeCustomDefinitions(
+    void mockAppRuntimeStorageAdapter.writeAppSnapshot(
+      MOCK_APP_STATE_SNAPSHOT_STORAGE_KEY,
+      selectMockAppSnapshot(state)
+    );
+  }, [hydrated, state]);
+
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+
+    void mockAppRuntimeStorageAdapter.writeCustomDefinitions(
       MOCK_APP_CUSTOM_DEFINITIONS_STORAGE_KEY,
       persistedDefinitions
     );
   }, [hydrated, persistedDefinitions]);
+
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+
+    void mockAppRuntimeStorageAdapter.writeSyncPreferences(
+      MOCK_APP_SYNC_PREFERENCES_STORAGE_KEY,
+      { autoSyncEnabled }
+    );
+  }, [autoSyncEnabled, hydrated]);
+
+  const syncPendingTransactions = useCallback(async () => {
+    if (syncInFlight) {
+      return;
+    }
+
+    const syncableIds = getSyncableTransactions(state.transactions).map((transaction) => transaction.id);
+    if (syncableIds.length === 0) {
+      return;
+    }
+
+    setSyncInFlight(true);
+
+    try {
+      const updatedAt = new Date().toISOString();
+
+      syncableIds.forEach((transactionId, index) => {
+        dispatch({
+          type: 'updateTransactionSyncStatus',
+          transactionId,
+          syncStatus: 'synced',
+          updatedAt: index === syncableIds.length - 1 ? updatedAt : undefined,
+        });
+      });
+    } finally {
+      setSyncInFlight(false);
+    }
+  }, [state.transactions, syncInFlight]);
+
+  useEffect(() => {
+    if (
+      !hydrated ||
+      !shouldAutoSync({
+        autoSyncEnabled,
+        syncInFlight,
+        syncableCount: syncableTransactions.length,
+      })
+    ) {
+      return;
+    }
+
+    void syncPendingTransactions();
+  }, [autoSyncEnabled, hydrated, syncInFlight, syncPendingTransactions, syncableTransactions.length]);
 
   /** @type {MockAppContextValue} */
   const value = useMemo(
@@ -162,6 +246,8 @@ export function MockAppProvider({ children }) {
       currentMonthData,
       accountSummaries,
       syncSummary,
+      autoSyncEnabled,
+      syncInFlight,
       availableMonths: currentMonthData.availableMonths,
       seededMonthlyStatistics,
       actions: {
@@ -212,13 +298,24 @@ export function MockAppProvider({ children }) {
 
           return account;
         },
+        setAutoSyncEnabled: (enabled) => setAutoSyncEnabled(enabled),
+        syncPendingTransactions,
       },
       selectors: {
         getCategoriesByType: (entryType) => selectCategoriesByType(state, entryType),
         getTransactionById: (transactionId) => selectTransactionById(state, transactionId),
       },
     }),
-    [accountSummaries, currentMonthData, seededMonthlyStatistics, state, syncSummary]
+    [
+      accountSummaries,
+      autoSyncEnabled,
+      currentMonthData,
+      seededMonthlyStatistics,
+      state,
+      syncInFlight,
+      syncPendingTransactions,
+      syncSummary,
+    ]
   );
 
   if (!hydrated) {

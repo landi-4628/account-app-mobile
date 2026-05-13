@@ -9,6 +9,7 @@ import {
 import { mockTransactions } from '../data/mock/mock-transactions.js';
 import { mockUser } from '../data/mock/mock-user.js';
 import { mergePersistedCustomDefinitions } from './mock-app-persistence-support.js';
+import { applyMockAppSnapshot } from './mock-app-snapshot.js';
 
 const DEFAULT_ENTRY_TYPE = 'expense';
 
@@ -50,7 +51,8 @@ const DEFAULT_ENTRY_TYPE = 'expense';
  * @typedef {{ type: 'addCategory', category: LedgerCategory }} AddCategoryAction
  * @typedef {{ type: 'addAccount', account: LedgerAccount }} AddAccountAction
  * @typedef {{ type: 'hydrateCustomDefinitions', definitions: { categories?: LedgerCategory[] | undefined, accounts?: LedgerAccount[] | undefined } }} HydrateCustomDefinitionsAction
- * @typedef {OpenQuickAddAction | CloseQuickAddAction | SetSelectedEntryTypeAction | SetCurrentMonthAction | AddTransactionAction | UpdateTransactionAction | DeleteTransactionAction | UpdateTransactionSyncStatusAction | AddCategoryAction | AddAccountAction | HydrateCustomDefinitionsAction} MockAppAction
+ * @typedef {{ type: 'hydrateSnapshot', snapshot: import('./mock-app-snapshot.js').MockAppSnapshot }} HydrateSnapshotAction
+ * @typedef {OpenQuickAddAction | CloseQuickAddAction | SetSelectedEntryTypeAction | SetCurrentMonthAction | AddTransactionAction | UpdateTransactionAction | DeleteTransactionAction | UpdateTransactionSyncStatusAction | AddCategoryAction | AddAccountAction | HydrateCustomDefinitionsAction | HydrateSnapshotAction} MockAppAction
  */
 
 /**
@@ -433,6 +435,8 @@ export function mockAppReducer(state, action) {
         ...state,
         accounts: [...state.accounts, action.account],
       };
+    case 'hydrateSnapshot':
+      return applyMockAppSnapshot(state, action.snapshot);
     case 'hydrateCustomDefinitions':
       return mergePersistedCustomDefinitions(state, action.definitions);
     default:

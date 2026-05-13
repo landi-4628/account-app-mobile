@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React from 'react';
+import { useRouter } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { accountingCopy } from '@/constants/accounting-copy';
@@ -11,19 +12,28 @@ import {
 } from '@/components/accounting';
 import {
   getAccountTypeLabel,
-  getSyncActionLabel,
   getSyncSummaryDetail,
 } from '@/components/accounting/statistics-profile-support';
 import { useAccountingTheme } from '@/components/accounting/use-accounting-theme';
 import { useMockApp } from '@/providers/mock-app-provider';
 
-function InfoCard({ title, rows }) {
+function ProfileEntryCard({ title, subtitle, rows, onPress }) {
   const { colors, spacing, radius, typography, shadow } = useAccountingTheme();
   const styles = createStyles(colors, spacing, radius, typography, shadow);
 
   return (
-    <InteractiveCard style={styles.card} shadowStyle={shadow.card}>
-      <Text style={styles.cardTitle}>{title}</Text>
+    <InteractiveCard
+      accessibilityRole="button"
+      onPress={onPress}
+      style={styles.card}
+      shadowStyle={shadow.card}>
+      <View style={styles.profileEntryHeader}>
+        <View style={styles.profileEntryCopy}>
+          <Text style={styles.cardTitle}>{title}</Text>
+          <Text style={styles.profileEntrySubtitle}>{subtitle}</Text>
+        </View>
+        <Text style={styles.profileEntryArrow}>{'>'}</Text>
+      </View>
       <View style={styles.infoList}>
         {rows.map((row) => (
           <View key={row.label} style={styles.infoRow}>
@@ -36,48 +46,16 @@ function InfoCard({ title, rows }) {
   );
 }
 
-function getSyncTargetTransaction(transactions) {
-  return (
-    transactions.find((transaction) => transaction.syncStatus === 'failed') ??
-    transactions.find((transaction) => transaction.syncStatus === 'pending') ??
-    null
-  );
-}
-
 export default function ProfileScreen() {
-  const { user, accountSummaries, syncSummary, transactions, actions } = useMockApp();
+  const router = useRouter();
+  const { user, accountSummaries, syncSummary, autoSyncEnabled } = useMockApp();
   const { colors, spacing, radius, typography, shadow } = useAccountingTheme();
   const styles = createStyles(colors, spacing, radius, typography, shadow);
 
-  const syncActionLabel = getSyncActionLabel(syncSummary.status);
-  const syncTarget = useMemo(() => getSyncTargetTransaction(transactions), [transactions]);
-  const profileRows = [
+  const profileEntryRows = [
     { label: accountingCopy.profile.ledger, value: user.ledgerName },
     { label: accountingCopy.profile.email, value: user.email },
-    { label: accountingCopy.profile.currency, value: user.currency },
-    { label: accountingCopy.profile.timeZone, value: user.timezone },
   ];
-  const workspaceRows = [
-    {
-      label: accountingCopy.profile.defaultAccount,
-      value:
-        accountSummaries.find((account) => account.id === user.defaultAccountId)?.name ??
-        user.defaultAccountId,
-    },
-    {
-      label: accountingCopy.profile.activeAccounts,
-      value: String(accountSummaries.filter((account) => account.isActive).length),
-    },
-    { label: accountingCopy.profile.mockMode, value: accountingCopy.profile.mockModeValue },
-  ];
-
-  const handleSyncAction = () => {
-    if (!syncTarget) {
-      return;
-    }
-
-    actions.updateTransactionSyncStatus(syncTarget.id, 'synced', new Date().toISOString());
-  };
 
   return (
     <AccountingScreen>
@@ -85,17 +63,19 @@ export default function ProfileScreen() {
         title={accountingCopy.profile.title}
         subtitle={accountingCopy.profile.subtitle}
       />
-      <InfoCard title={user.name} rows={profileRows} />
+      <ProfileEntryCard
+        title={user.name}
+        subtitle="查看基础资料与同步设置"
+        rows={profileEntryRows}
+        onPress={() => router.push('/profile')}
+      />
       <SyncSummaryRow
         status={syncSummary.status}
         pendingCount={syncSummary.pendingCount}
         failedCount={syncSummary.failedCount}
         label={accountingCopy.profile.syncStatus}
-        detail={getSyncSummaryDetail(syncSummary, user.timezone)}
-        actionLabel={syncActionLabel ?? undefined}
-        onActionPress={syncActionLabel ? handleSyncAction : undefined}
+        detail={getSyncSummaryDetail(syncSummary, user.timezone, { isAutoSyncEnabled: autoSyncEnabled })}
       />
-      <InfoCard title={accountingCopy.profile.workspace} rows={workspaceRows} />
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{accountingCopy.profile.accounts}</Text>
         <View style={styles.sectionBody}>
@@ -127,6 +107,25 @@ function createStyles(colors, spacing, radius, typography, shadow) {
       fontSize: typography.title,
       fontWeight: '700',
       color: colors.text,
+    },
+    profileEntryHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.md,
+    },
+    profileEntryCopy: {
+      flex: 1,
+      gap: 4,
+    },
+    profileEntrySubtitle: {
+      fontSize: typography.body,
+      color: colors.textSecondary,
+    },
+    profileEntryArrow: {
+      fontSize: typography.title,
+      fontWeight: '700',
+      color: colors.textMuted,
     },
     infoList: {
       gap: spacing.sm,
