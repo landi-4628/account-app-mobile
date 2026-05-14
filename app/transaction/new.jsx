@@ -49,6 +49,22 @@ export default function NewTransactionScreen() {
     [actions, router]
   );
 
+  const handleCreateCategoryError = React.useCallback(
+    (error) => {
+      setDialogState(
+        error instanceof Error && error.message === '请先登录'
+          ? buildAuthRequiredDialogState(() => {
+              router.replace('/auth/login');
+            })
+          : {
+              title: error instanceof Error ? error.message : '新增分类失败',
+              actions: [{ label: '知道了', tone: 'primary' }],
+            }
+      );
+    },
+    [router]
+  );
+
   return (
     <>
       <Stack.Screen options={{ title: accountingCopy.actions.addEntry }} />
@@ -60,6 +76,7 @@ export default function NewTransactionScreen() {
           defaultType={selectedEntryType}
           mode="create"
           onCreateCategory={actions.addCategory}
+          onCreateCategoryError={handleCreateCategoryError}
           submitLabel={accountingCopy.actions.addEntry}
           timeZoneOffset={DEFAULT_TIME_ZONE_OFFSET}
           onSubmit={handleSubmit}

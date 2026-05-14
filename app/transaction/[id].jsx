@@ -88,6 +88,22 @@ export default function EditTransactionScreen() {
     }
   }, [actions, router, transactionId]);
 
+  const handleCreateCategoryError = React.useCallback(
+    (error) => {
+      setDialogState(
+        error instanceof Error && error.message === '请先登录'
+          ? buildAuthRequiredDialogState(() => {
+              router.replace('/auth/login');
+            })
+          : {
+              title: error instanceof Error ? error.message : '新增分类失败',
+              actions: [{ label: '知道了', tone: 'primary' }],
+            }
+      );
+    },
+    [router]
+  );
+
   if (!transactionId || !transaction) {
     return (
       <>
@@ -115,6 +131,7 @@ export default function EditTransactionScreen() {
           initialValues={transaction}
           mode="edit"
           onCreateCategory={actions.addCategory}
+          onCreateCategoryError={handleCreateCategoryError}
           submitLabel={accountingCopy.actions.save}
           timeZoneOffset={DEFAULT_TIME_ZONE_OFFSET}
           deleteLabel={accountingCopy.actions.delete}

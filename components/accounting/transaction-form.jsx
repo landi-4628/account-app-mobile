@@ -67,7 +67,8 @@ const inlineCopy = {
  *     note: string,
  *     syncStatus: SyncStatus,
  *   }) => void,
- *   onCreateCategory?: ((input: { name: string, type: EntryType }) => { id: string } | null | undefined) | undefined,
+ *   onCreateCategory?: ((input: { name: string, type: EntryType }) => ({ id: string } | Promise<{ id: string } | null | undefined> | null | undefined)) | undefined,
+ *   onCreateCategoryError?: ((error: unknown) => void) | undefined,
  *   onDelete?: (() => void) | undefined,
  * }} props
  */
@@ -85,6 +86,7 @@ export function TransactionForm({
   busy = false,
   onSubmit,
   onCreateCategory,
+  onCreateCategoryError,
   onDelete,
 }) {
   const { colors, spacing, radius, typography, shadow } = useAccountingTheme();
@@ -143,6 +145,7 @@ export function TransactionForm({
   }, [
     defaultSyncStatus,
     defaultType,
+    implicitAccountId,
     initialValues,
     mode,
     timeZoneOffset,
@@ -175,7 +178,7 @@ export function TransactionForm({
     [visibleCategories]
   );
 
-  const saveNewCategory = React.useCallback(() => {
+  const saveNewCategory = React.useCallback(async () => {
     const normalizedName = categoryNameInput.trim();
 
     if (!normalizedName) {
@@ -188,20 +191,26 @@ export function TransactionForm({
       return;
     }
 
-    const created = onCreateCategory?.({ name: normalizedName, type: draft.type });
+    try {
+      const created = await Promise.resolve(
+        onCreateCategory?.({ name: normalizedName, type: draft.type })
+      );
 
-    if (!created?.id) {
-      return;
+      if (!created?.id) {
+        return;
+      }
+
+      setDraft((currentDraft) => ({
+        ...currentDraft,
+        categoryId: created.id,
+      }));
+      setCategoryComposerOpen(false);
+      setCategoryNameInput('');
+      setCategoryCreateError('');
+    } catch (error) {
+      onCreateCategoryError?.(error);
     }
-
-    setDraft((currentDraft) => ({
-      ...currentDraft,
-      categoryId: created.id,
-    }));
-    setCategoryComposerOpen(false);
-    setCategoryNameInput('');
-    setCategoryCreateError('');
-  }, [categoryNameInput, categoryNameSet, draft.type, onCreateCategory]);
+  }, [categoryNameInput, categoryNameSet, draft.type, onCreateCategory, onCreateCategoryError]);
 
   return (
     <View style={styles.container}>
@@ -289,7 +298,9 @@ export function TransactionForm({
               <Pressable
                 accessibilityRole="button"
                 disabled={disableActions}
-                onPress={saveNewCategory}
+                onPress={() => {
+                  void saveNewCategory();
+                }}
                 style={({ pressed }) => [
                   styles.inlinePrimaryButton,
                   disableActions && styles.buttonDisabled,

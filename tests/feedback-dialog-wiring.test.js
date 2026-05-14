@@ -10,6 +10,9 @@ const changePasswordScreenPath = path.resolve(process.cwd(), 'app/profile/change
 const categoriesScreenPath = path.resolve(process.cwd(), 'app/categories/index.jsx');
 const ledgerScreenPath = path.resolve(process.cwd(), 'app/profile/ledger.jsx');
 const accountingIndexPath = path.resolve(process.cwd(), 'components/accounting/index.js');
+const newTransactionScreenPath = path.resolve(process.cwd(), 'app/transaction/new.jsx');
+const editTransactionScreenPath = path.resolve(process.cwd(), 'app/transaction/[id].jsx');
+const transactionFormPath = path.resolve(process.cwd(), 'components/accounting/transaction-form.jsx');
 
 test('feedback dialog is exported for screen-level prompt handling', () => {
   const source = readFileSync(accountingIndexPath, 'utf8');
@@ -42,4 +45,16 @@ test('auth and profile management screens use feedback dialogs instead of inline
   assert.doesNotMatch(passwordSource, /<InfoBanner/);
   assert.doesNotMatch(categoriesSource, /<InfoBanner/);
   assert.doesNotMatch(ledgerSource, /<InfoBanner/);
+});
+
+test('transaction screens route create-category auth failures into feedback dialogs', () => {
+  const newSource = readFileSync(newTransactionScreenPath, 'utf8');
+  const editSource = readFileSync(editTransactionScreenPath, 'utf8');
+  const formSource = readFileSync(transactionFormPath, 'utf8');
+
+  assert.match(newSource, /onCreateCategoryError=\{handleCreateCategoryError\}/);
+  assert.match(editSource, /onCreateCategoryError=\{handleCreateCategoryError\}/);
+  assert.match(formSource, /const saveNewCategory = React\.useCallback\(async \(\) => \{/);
+  assert.match(formSource, /await Promise\.resolve\(/);
+  assert.match(formSource, /onCreateCategoryError\?\.\(error\)/);
 });

@@ -27,37 +27,42 @@ export function FeedbackDialog({
       <View style={styles.backdrop}>
         <View style={styles.scrim} />
         <View style={styles.card}>
-          <Text style={styles.title}>{title}</Text>
-          {description ? <Text style={styles.description}>{description}</Text> : null}
+          <View style={styles.content}>
+            <Text style={styles.title}>{title}</Text>
+            {description ? <Text style={styles.description}>{description}</Text> : null}
+          </View>
           <View style={styles.actions}>
-            {actions.map((action) => (
-              <Pressable
-                key={action.label}
-                accessibilityRole="button"
-                onPress={() => {
-                  action.onPress?.();
-                  onClose();
-                }}
-                style={({ pressed }) => [
-                  styles.button,
-                  action.tone === 'secondary'
-                    ? styles.secondaryButton
-                    : action.tone === 'danger'
-                      ? styles.dangerButton
-                      : styles.primaryButton,
-                  pressed ? styles.buttonPressed : null,
-                ]}>
-                <Text
-                  style={[
-                    styles.buttonLabel,
-                    action.tone === 'secondary'
-                      ? styles.secondaryButtonLabel
-                      : styles.primaryButtonLabel,
+            {actions.map((action, index) => {
+              const isPrimary = action.tone === 'primary';
+              const isDanger = action.tone === 'danger';
+
+              return (
+                <Pressable
+                  key={`${action.label}-${index}`}
+                  accessibilityRole="button"
+                  onPress={() => {
+                    action.onPress?.();
+                    onClose();
+                  }}
+                  style={({ pressed }) => [
+                    styles.button,
+                    index > 0 ? styles.buttonWithDivider : null,
+                    pressed ? styles.buttonPressed : null,
                   ]}>
-                  {action.label}
-                </Text>
-              </Pressable>
-            ))}
+                  <Text
+                    style={[
+                      styles.buttonLabel,
+                      isPrimary
+                        ? styles.primaryButtonLabel
+                        : isDanger
+                          ? styles.dangerButtonLabel
+                          : styles.secondaryButtonLabel,
+                    ]}>
+                    {action.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
       </View>
@@ -65,69 +70,73 @@ export function FeedbackDialog({
   );
 }
 
-function createStyles({ colors, spacing, radius, typography }) {
+function createStyles({ colors, spacing, typography }) {
   return StyleSheet.create({
     backdrop: {
       flex: 1,
       justifyContent: 'center',
-      padding: spacing.lg,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.xl,
     },
     scrim: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(15, 23, 42, 0.5)',
+      backgroundColor: 'rgba(17, 24, 39, 0.56)',
     },
     card: {
-      borderRadius: radius.lg,
+      overflow: 'hidden',
+      borderRadius: 24,
       backgroundColor: colors.surface,
-      padding: spacing.lg,
+    },
+    content: {
+      paddingTop: spacing.xl,
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.xl,
       gap: spacing.md,
     },
     title: {
       fontSize: typography.title,
       fontWeight: '700',
       color: colors.text,
+      textAlign: 'center',
     },
     description: {
-      fontSize: typography.body,
-      lineHeight: 22,
+      fontSize: typography.bodyLarge,
+      lineHeight: 30,
       color: colors.textSecondary,
+      textAlign: 'center',
     },
     actions: {
       flexDirection: 'row',
-      justifyContent: 'flex-end',
-      gap: spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
     },
     button: {
-      minWidth: 88,
-      minHeight: 44,
+      flex: 1,
+      minHeight: 56,
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: radius.md,
-      paddingHorizontal: spacing.md,
+      backgroundColor: colors.surface,
+      paddingHorizontal: spacing.sm,
     },
-    primaryButton: {
-      backgroundColor: colors.brand,
-    },
-    dangerButton: {
-      backgroundColor: colors.danger,
-    },
-    secondaryButton: {
-      backgroundColor: colors.surfaceAlt,
-      borderWidth: 1,
-      borderColor: colors.border,
+    buttonWithDivider: {
+      borderLeftWidth: 1,
+      borderLeftColor: colors.border,
     },
     buttonPressed: {
-      opacity: 0.85,
+      backgroundColor: colors.surfaceAlt,
     },
     buttonLabel: {
-      fontSize: typography.body,
+      fontSize: typography.title,
       fontWeight: '700',
     },
     primaryButtonLabel: {
-      color: colors.textInverse,
+      color: '#2f80ed',
     },
     secondaryButtonLabel: {
       color: colors.text,
+    },
+    dangerButtonLabel: {
+      color: colors.danger,
     },
   });
 }
