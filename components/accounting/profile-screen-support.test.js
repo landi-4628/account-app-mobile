@@ -84,6 +84,22 @@ test('builds chinese app sections for the profile hub', () => {
   );
 });
 
+test('profile hub rows expose stable unique keys for rendering', () => {
+  const sections = buildProfileHubSections({
+    availability: {
+      canChangePassword: false,
+      canLogin: true,
+      canRegister: true,
+      canUpdateProfile: false,
+    },
+  });
+
+  const keys = sections.flatMap((section) => section.rows.map((row) => row.key));
+
+  assert.equal(keys.every((key) => typeof key === 'string' && key.length > 0), true);
+  assert.equal(new Set(keys).size, keys.length);
+});
+
 test('builds chinese overview links for the my page', () => {
   assert.deepEqual(buildProfileOverviewLinks(), [
     {

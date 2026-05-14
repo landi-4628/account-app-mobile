@@ -45,9 +45,16 @@ function QuickLinkSection({ title, rows }) {
     <View style={{ gap: spacing.sm }}>
       <Text style={sectionTitleStyle(useAccountingTheme())}>{title}</Text>
       <View style={{ gap: spacing.sm }}>
-        {rows.map((row) => (
-          <ManagementRow key={row.title} {...row} />
-        ))}
+        {rows.map((row, index) => {
+          const { key: rowKey, ...rowProps } = row;
+
+          return (
+            <ManagementRow
+              key={rowKey ?? row.href ?? `${title}-${index}`}
+              {...rowProps}
+            />
+          );
+        })}
       </View>
     </View>
   );

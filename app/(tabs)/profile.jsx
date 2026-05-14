@@ -48,8 +48,8 @@ function ProfileEntryCard({ title, subtitle, rows, onPress }) {
         <Text style={styles.profileEntryArrow}>{'>'}</Text>
       </View>
       <View style={styles.infoList}>
-        {rows.map((row) => (
-          <View key={row.label} style={styles.infoRow}>
+        {rows.map((row, index) => (
+          <View key={row.key ?? `${title}-${index}`} style={styles.infoRow}>
             <Text style={styles.infoLabel}>{row.label}</Text>
             <Text style={styles.infoValue}>{row.value}</Text>
           </View>
@@ -67,9 +67,9 @@ export default function ProfileScreen() {
   const [dialogState, setDialogState] = React.useState(null);
 
   const profileEntryRows = [
-    { label: accountingCopy.profile.ledger, value: user.ledgerName },
-    { label: accountingCopy.profile.email, value: user.email },
-    { label: accountingCopy.profile.syncMode, value: getProfileSyncModeCopy(autoSyncEnabled) },
+    { key: 'ledger', label: accountingCopy.profile.ledger, value: user.ledgerName },
+    { key: 'email', label: accountingCopy.profile.email, value: user.email },
+    { key: 'sync-mode', label: accountingCopy.profile.syncMode, value: getProfileSyncModeCopy(autoSyncEnabled) },
   ];
   const managementRows = buildProfileOverviewLinks();
   const hasPendingChanges = syncSummary.pendingCount > 0 || syncSummary.failedCount > 0;
@@ -138,7 +138,7 @@ export default function ProfileScreen() {
         <View style={styles.sectionBody}>
           {managementRows.map((row) => (
             <ProfileEntryCard
-              key={row.title}
+              key={row.key ?? row.href}
               title={row.title}
               subtitle={row.subtitle}
               rows={[]}
