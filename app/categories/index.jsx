@@ -47,7 +47,7 @@ const copy = {
   cancelEdit: '\u53d6\u6d88',
   editHint: '\u957f\u6309\u81ea\u5efa\u5206\u7c7b\u53ef\u7f16\u8f91\u6216\u5220\u9664',
   deleteConfirmTitle: '\u786e\u8ba4\u5220\u9664',
-  deleteConfirmBody: '\u5220\u9664\u540e\u4e0d\u53ef\u6062\u590d\u3002',
+  deleteConfirmBody: '\u5220\u9664\u7c7b\u522b\u4f1a\u540c\u65f6\u5220\u9664\u8be5\u7c7b\u522b\u4e0b\u7684\u6240\u6709\u8bb0\u5f55',
   deleteAction: '\u5220\u9664',
   cancelAction: '\u53d6\u6d88',
   editAction: '\u7f16\u8f91',

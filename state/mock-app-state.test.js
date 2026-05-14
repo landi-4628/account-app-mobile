@@ -187,6 +187,51 @@ test('toggles a category active state in place', () => {
   assert.equal(state.categories.find((item) => item.id === 'cat-food')?.isActive, false);
 });
 
+test('deleting a category also soft-deletes transactions under that category', () => {
+  const withCategory = mockAppReducer(createInitialMockAppState(), {
+    type: 'addCategory',
+    category: {
+      id: 'cat-food',
+      name: 'Food',
+      type: 'expense',
+      isActive: true,
+      isCustom: true,
+    },
+  });
+  const withTransactions = mockAppReducer(
+    mockAppReducer(withCategory, {
+      type: 'addTransaction',
+      transaction: buildTransaction({ id: 'tx-food', categoryId: 'cat-food', syncStatus: 'synced' }),
+    }),
+    {
+      type: 'addTransaction',
+      transaction: buildTransaction({
+        id: 'tx-other',
+        categoryId: 'cat-commute',
+        note: 'Bus',
+        syncStatus: 'synced',
+      }),
+    }
+  );
+
+  const state = mockAppReducer(withTransactions, {
+    type: 'deleteCategory',
+    categoryId: 'cat-food',
+  });
+
+  const deletedCategory = state.categories.find((item) => item.id === 'cat-food');
+  const deletedTransaction = state.transactions.find((item) => item.id === 'tx-food');
+  const untouchedTransaction = state.transactions.find((item) => item.id === 'tx-other');
+  const monthData = selectCurrentMonthData(state);
+
+  assert.equal(deletedCategory?.isActive, false);
+  assert.equal(typeof deletedCategory?.deletedAt, 'string');
+  assert.equal(deletedTransaction?.syncStatus, 'pending');
+  assert.equal(typeof deletedTransaction?.deletedAt, 'string');
+  assert.equal(untouchedTransaction?.deletedAt, undefined);
+  assert.deepEqual(monthData.transactions.map((item) => item.id), ['tx-other']);
+});
+
 test('selects only custom categories for persistence', () => {
   const state = mockAppReducer(createInitialMockAppState(), {
     type: 'addCategory',

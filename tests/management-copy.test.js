@@ -19,3 +19,14 @@ test('management screens do not retain direct english UI copy', () => {
     });
   });
 });
+
+test('category deletion confirmation explains linked records are deleted too', () => {
+  const source = readFileSync(path.resolve(process.cwd(), 'app/categories/index.jsx'), 'utf8');
+  const match = source.match(/deleteConfirmBody:\s*'([^']+)'/);
+
+  assert.ok(match, 'expected deleteConfirmBody copy to exist');
+  assert.equal(
+    JSON.parse(`"${match[1]}"`),
+    '删除类别会同时删除该类别下的所有记录'
+  );
+});

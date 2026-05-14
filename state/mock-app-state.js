@@ -474,6 +474,15 @@ export function mockAppReducer(state, action) {
             ? { ...category, deletedAt, isActive: false }
             : category
         ),
+        transactions: state.transactions.map((transaction) =>
+          transaction.categoryId === action.categoryId
+            ? {
+                ...transaction,
+                deletedAt: transaction.deletedAt ?? deletedAt,
+                syncStatus: 'pending',
+              }
+            : transaction
+        ),
       };
     }
     case 'reconcileCustomDefinitions':
