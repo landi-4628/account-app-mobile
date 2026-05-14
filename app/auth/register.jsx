@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link, Stack, useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   AccountingScreen,
@@ -34,26 +34,32 @@ const copy = {
   confirmPasswordError: '\u4e24\u6b21\u8f93\u5165\u7684\u5bc6\u7801\u4e0d\u4e00\u81f4',
   back: '\u8fd4\u56de',
   submit: '\u521b\u5efa\u8d26\u53f7',
+  submitting: '\u6ce8\u518c\u4e2d\u2026',
   loginPrompt: '\u5df2\u6709\u8d26\u53f7\uff1f',
   loginLink: '\u53bb\u767b\u5f55',
 };
 
-function RegisterButton({ label, onPress, disabled, secondary = false }) {
+function RegisterButton({ label, onPress, disabled, secondary = false, loading = false }) {
   const theme = useAccountingTheme();
   const styles = createButtonStyles(theme);
+  const busy = Boolean(loading);
 
   return (
     <Pressable
       accessibilityRole="button"
-      disabled={disabled}
+      disabled={disabled || busy}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
         secondary ? styles.buttonSecondary : styles.buttonPrimary,
-        disabled ? styles.buttonDisabled : null,
-        pressed && !disabled ? styles.buttonPressed : null,
+        disabled || busy ? styles.buttonDisabled : null,
+        pressed && !(disabled || busy) ? styles.buttonPressed : null,
       ]}>
-      <Text style={secondary ? styles.labelSecondary : styles.labelPrimary}>{label}</Text>
+      {busy && !secondary ? (
+        <ActivityIndicator color={theme.colors.textInverse} />
+      ) : (
+        <Text style={secondary ? styles.labelSecondary : styles.labelPrimary}>{label}</Text>
+      )}
     </Pressable>
   );
 }
@@ -103,6 +109,7 @@ export default function RegisterScreen() {
   const [draft, setDraft] = useState(() => buildAuthFormDraft('register'));
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const capabilityNotice = buildCapabilityNotice('register', availability);
 
   const handleChange = React.useCallback((field, value) => {
@@ -126,6 +133,8 @@ export default function RegisterScreen() {
       return;
     }
 
+    setSubmitting(true);
+    setSubmitError('');
     try {
       await actions.register?.({
         name: draft.name.trim(),
@@ -135,6 +144,8 @@ export default function RegisterScreen() {
       router.replace('/(tabs)/profile');
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : copy.submitError);
+    } finally {
+      setSubmitting(false);
     }
   }, [actions, availability.canRegister, draft, router]);
 
@@ -181,11 +192,12 @@ export default function RegisterScreen() {
             secureTextEntry
           />
           <View style={styles.actions}>
-            <RegisterButton label={copy.back} secondary onPress={() => router.back()} />
+            <RegisterButton label={copy.back} secondary onPress={() => router.back()} disabled={submitting} />
             <RegisterButton
-              label={copy.submit}
+              label={submitting ? copy.submitting : copy.submit}
               onPress={() => void handleSubmit()}
               disabled={!availability.canRegister}
+              loading={submitting}
             />
           </View>
           <Text style={styles.footerText}>

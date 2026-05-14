@@ -8,6 +8,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { ActivityIndicator, Modal, Text, View } from 'react-native';
 import { createApiClient } from '../lib/api-client.js';
 import { createAuthApi } from '../lib/auth-api.js';
 import {
@@ -44,7 +45,13 @@ import {
   ledgerCategoryToInsert,
   repoCategoryRowToLedger,
 } from './local-definition-mappers.js';
+import { useAccountingTheme } from '../components/accounting/use-accounting-theme';
 import { getSyncableTransactions, shouldAutoSync } from './mock-app-sync-support.js';
+
+/**
+ * 数据策略：业务读写以本地快照与 SQLite 为准（秒开、离线可用）；有网且开启自动同步时
+ * 异步推送待同步流水；登录/恢复会话后从云端拉取并合并到本地。换账号时先清空再拉取。
+ */
 
 /**
  * @typedef {import('../types/accounting').EntryType} EntryType
@@ -105,6 +112,7 @@ import { getSyncableTransactions, shouldAutoSync } from './mock-app-sync-support
  * @property {SyncSummary} syncSummary
  * @property {boolean} autoSyncEnabled
  * @property {boolean} syncInFlight
+ * @property {boolean} ledgerBootstrapLoading
  * @property {string[]} availableMonths
  * @property {MonthlyStatistics[]} seededMonthlyStatistics
  * @property {MockAppActions} actions
@@ -157,6 +165,8 @@ export function MockAppProvider({ children }) {
      * }) | null} */ (null)
   );
   const lastAuthenticatedUserIdRef = useRef(/** @type {string | null} */ (null));
+  const skipNextRemoteLedgerPullRef = useRef(false);
+  const [ledgerBootstrapLoading, setLedgerBootstrapLoading] = useState(false);
 
   const authApi = useMemo(
     () =>
@@ -292,6 +302,56 @@ export function MockAppProvider({ children }) {
     [hydrateRemoteLedgerState, ledgerSyncApi, remoteAccessToken, remoteLedgerId]
   );
 
+  const completeSessionFromAuthResponse = useCallback(
+    /**
+     * @param {{ session: AuthSession, user: RemoteAuthUser & { currentLedgerId?: string | null | undefined } }} result
+     */
+    async (result) => {
+      const previousUserId = lastAuthenticatedUserIdRef.current;
+      let baseline = state;
+
+      if (previousUserId != null && previousUserId !== result.session.userId) {
+        const snapshot = buildSnapshotFromRemotePayload({ data: {} }, {
+          currentMonth: state.currentMonth,
+          selectedEntryType: state.selectedEntryType,
+          fallbackSyncUpdatedAt: state.syncUpdatedAt,
+          baselineImplicitLedgerAccountId:
+            state.implicitLedgerAccountId || state.user.defaultAccountId,
+        });
+        /** @type {import('../state/mock-app-state.js').MockAppAction} */
+        const action = {
+          type: 'hydrateSnapshot',
+          snapshot,
+        };
+        baseline = reduceState(state, action);
+        dispatch(action);
+      }
+
+      skipNextRemoteLedgerPullRef.current = true;
+      lastAuthenticatedUserIdRef.current = result.session.userId;
+      setAuthSession(result.session);
+      setRemoteUser(result.user);
+
+      try {
+        const token = result.session.accessToken;
+        const ledgerId = result.user?.currentLedgerId;
+        if (token != null && ledgerId != null) {
+          setLedgerBootstrapLoading(true);
+          try {
+            await hydrateRemoteLedgerState(token, baseline);
+          } finally {
+            setLedgerBootstrapLoading(false);
+          }
+        }
+      } finally {
+        skipNextRemoteLedgerPullRef.current = false;
+      }
+
+      return result.user;
+    },
+    [dispatch, hydrateRemoteLedgerState, reduceState, state]
+  );
+
   useEffect(() => {
     let active = true;
 
@@ -414,11 +474,21 @@ export function MockAppProvider({ children }) {
     const currentAccessToken = remoteAccessToken;
 
     async function hydrateRemoteLedger() {
+      if (skipNextRemoteLedgerPullRef.current) {
+        skipNextRemoteLedgerPullRef.current = false;
+        return;
+      }
+
+      setLedgerBootstrapLoading(true);
       try {
         await hydrateRemoteLedgerState(currentAccessToken, state);
       } catch {
         if (!active) {
           return;
+        }
+      } finally {
+        if (active) {
+          setLedgerBootstrapLoading(false);
         }
       }
     }
@@ -547,6 +617,7 @@ export function MockAppProvider({ children }) {
       syncSummary,
       autoSyncEnabled,
       syncInFlight,
+      ledgerBootstrapLoading,
       availableMonths: currentMonthData.availableMonths,
       seededMonthlyStatistics,
       actions: {
@@ -728,45 +799,11 @@ export function MockAppProvider({ children }) {
         syncPendingTransactions,
         login: async ({ email, password }) => {
           const result = await authApi.login({ email, password });
-          const previousUserId = lastAuthenticatedUserIdRef.current;
-          if (previousUserId != null && previousUserId !== result.session.userId) {
-            dispatch({
-              type: 'hydrateSnapshot',
-              snapshot: buildSnapshotFromRemotePayload({ data: {} }, {
-                currentMonth: state.currentMonth,
-                selectedEntryType: state.selectedEntryType,
-                fallbackSyncUpdatedAt: state.syncUpdatedAt,
-                baselineImplicitLedgerAccountId:
-                  state.implicitLedgerAccountId || state.user.defaultAccountId,
-              }),
-            });
-          }
-
-          lastAuthenticatedUserIdRef.current = result.session.userId;
-          setAuthSession(result.session);
-          setRemoteUser(result.user);
-          return result.user;
+          return completeSessionFromAuthResponse(result);
         },
         register: async ({ name, email, password }) => {
           const result = await authApi.register({ name, email, password });
-          const previousUserId = lastAuthenticatedUserIdRef.current;
-          if (previousUserId != null && previousUserId !== result.session.userId) {
-            dispatch({
-              type: 'hydrateSnapshot',
-              snapshot: buildSnapshotFromRemotePayload({ data: {} }, {
-                currentMonth: state.currentMonth,
-                selectedEntryType: state.selectedEntryType,
-                fallbackSyncUpdatedAt: state.syncUpdatedAt,
-                baselineImplicitLedgerAccountId:
-                  state.implicitLedgerAccountId || state.user.defaultAccountId,
-              }),
-            });
-          }
-
-          lastAuthenticatedUserIdRef.current = result.session.userId;
-          setAuthSession(result.session);
-          setRemoteUser(result.user);
-          return result.user;
+          return completeSessionFromAuthResponse(result);
         },
         updateProfile: async (draft) => {
           if (!authSession?.accessToken) {
@@ -815,6 +852,8 @@ export function MockAppProvider({ children }) {
       syncRemoteState,
       syncPendingTransactions,
       syncSummary,
+      completeSessionFromAuthResponse,
+      ledgerBootstrapLoading,
     ]
   );
 
@@ -822,7 +861,53 @@ export function MockAppProvider({ children }) {
     return null;
   }
 
-  return React.createElement(MockAppContext.Provider, { value }, children);
+  return React.createElement(
+    MockAppContext.Provider,
+    { value },
+    children,
+    React.createElement(LedgerBootstrapBackdrop, { key: 'ledger-bootstrap' })
+  );
+}
+
+const ledgerBootstrapLoadingCopy =
+  '\u6b63\u5728\u4ece\u4e91\u7aef\u540c\u6b65\u8d26\u672c\u6570\u636e\u2026';
+
+function LedgerBootstrapBackdrop() {
+  const { ledgerBootstrapLoading } = useMockApp();
+  const theme = useAccountingTheme();
+
+  /** @type {import('react-native').ViewStyle} */
+  const fillRoot = {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.lg,
+  };
+
+  /** @type {import('react-native').TextStyle} */
+  const captionText = {
+    marginTop: theme.spacing.md,
+    fontSize: theme.typography.body,
+    color: '#ffffff',
+    textAlign: 'center',
+  };
+
+  return React.createElement(
+    Modal,
+    {
+      visible: ledgerBootstrapLoading,
+      transparent: true,
+      animationType: 'fade',
+      statusBarTranslucent: true,
+    },
+    React.createElement(
+      View,
+      { style: fillRoot },
+      React.createElement(ActivityIndicator, { size: 'large', color: '#ffffff' }),
+      React.createElement(Text, { style: captionText }, ledgerBootstrapLoadingCopy)
+    )
+  );
 }
 
 /**

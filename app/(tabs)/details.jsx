@@ -15,6 +15,7 @@ import {
   formatAccountingCurrency,
 } from '@/components/accounting';
 import {
+  buildDetailsSummaryItems,
   createCategoryNameMap,
   getAccountingMonthLabel,
   groupTransactionsByDay,

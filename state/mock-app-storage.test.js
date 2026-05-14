@@ -46,7 +46,7 @@ test('reads sync preferences with defaults when storage is empty or invalid', as
   });
 
   assert.deepEqual(await emptyStorage.readSyncPreferences('sync-key'), {
-    autoSyncEnabled: false,
+    autoSyncEnabled: true,
   });
   assert.deepEqual(await invalidStorage.readSyncPreferences('sync-key'), {
     autoSyncEnabled: false,

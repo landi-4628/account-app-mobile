@@ -52,7 +52,7 @@ export function createMockAppStorageAdapter(storage) {
       try {
         const raw = await storage.getItem(key);
         if (!raw) {
-          return { autoSyncEnabled: false };
+          return { autoSyncEnabled: true };
         }
 
         const parsed = JSON.parse(raw);

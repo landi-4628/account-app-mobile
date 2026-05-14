@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link, Stack, useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   AccountingScreen,
@@ -30,26 +30,32 @@ const copy = {
   passwordError: '\u8bf7\u8f93\u5165\u5bc6\u7801',
   back: '\u8fd4\u56de',
   submit: '\u767b\u5f55',
+  submitting: '\u767b\u5f55\u4e2d\u2026',
   registerPrompt: '\u8fd8\u6ca1\u6709\u8d26\u53f7\uff1f',
   registerLink: '\u53bb\u6ce8\u518c',
 };
 
-function AuthButton({ label, onPress, disabled, secondary = false }) {
+function AuthButton({ label, onPress, disabled, secondary = false, loading = false }) {
   const theme = useAccountingTheme();
   const styles = createButtonStyles(theme);
+  const busy = Boolean(loading);
 
   return (
     <Pressable
       accessibilityRole="button"
-      disabled={disabled}
+      disabled={disabled || busy}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
         secondary ? styles.buttonSecondary : styles.buttonPrimary,
-        disabled ? styles.buttonDisabled : null,
-        pressed && !disabled ? styles.buttonPressed : null,
+        disabled || busy ? styles.buttonDisabled : null,
+        pressed && !(disabled || busy) ? styles.buttonPressed : null,
       ]}>
-      <Text style={secondary ? styles.labelSecondary : styles.labelPrimary}>{label}</Text>
+      {busy && !secondary ? (
+        <ActivityIndicator color={theme.colors.textInverse} />
+      ) : (
+        <Text style={secondary ? styles.labelSecondary : styles.labelPrimary}>{label}</Text>
+      )}
     </Pressable>
   );
 }
@@ -98,7 +104,7 @@ export default function LoginScreen() {
   const availability = useMemo(() => getActionAvailability(actions), [actions]);
   const [draft, setDraft] = useState(() => buildAuthFormDraft('login'));
   const [errors, setErrors] = useState({});
-  const [submitError, setSubmitError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const capabilityNotice = buildCapabilityNotice('login', availability);
 
   const handleChange = React.useCallback((field, value) => {
@@ -122,6 +128,8 @@ export default function LoginScreen() {
       return;
     }
 
+    setSubmitting(true);
+    setSubmitError('');
     try {
       await actions.login?.({
         email: draft.email.trim(),
@@ -130,6 +138,8 @@ export default function LoginScreen() {
       router.replace('/(tabs)/profile');
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : copy.submitError);
+    } finally {
+      setSubmitting(false);
     }
   }, [actions, availability.canLogin, draft, router]);
 
@@ -162,11 +172,12 @@ export default function LoginScreen() {
             secureTextEntry
           />
           <View style={styles.actions}>
-            <AuthButton label={copy.back} secondary onPress={() => router.back()} />
+            <AuthButton label={copy.back} secondary onPress={() => router.back()} disabled={submitting} />
             <AuthButton
-              label={copy.submit}
+              label={submitting ? copy.submitting : copy.submit}
               onPress={() => void handleSubmit()}
               disabled={!availability.canLogin}
+              loading={submitting}
             />
           </View>
           <Text style={styles.footerText}>
