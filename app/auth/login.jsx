@@ -4,8 +4,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 
 import {
   AccountingScreen,
+  FeedbackDialog,
   FormField,
-  InfoBanner,
   SectionHeader,
   SurfaceCard,
 } from '@/components/accounting';
@@ -33,6 +33,7 @@ const copy = {
   submitting: '\u767b\u5f55\u4e2d\u2026',
   registerPrompt: '\u8fd8\u6ca1\u6709\u8d26\u53f7\uff1f',
   registerLink: '\u53bb\u6ce8\u518c',
+  acknowledge: '知道了',
 };
 
 function AuthButton({ label, onPress, disabled, secondary = false, loading = false }) {
@@ -104,9 +105,21 @@ export default function LoginScreen() {
   const availability = useMemo(() => getActionAvailability(actions), [actions]);
   const [draft, setDraft] = useState(() => buildAuthFormDraft('login'));
   const [errors, setErrors] = useState({});
-  const [submitError, setSubmitError] = useState('');
+  const [dialogState, setDialogState] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const capabilityNotice = buildCapabilityNotice('login', availability);
+
+  React.useEffect(() => {
+    if (!capabilityNotice) {
+      return;
+    }
+
+    setDialogState((current) => current ?? {
+      title: copy.unavailableTitle,
+      description: copy.unavailableDescription,
+      actions: [{ label: copy.acknowledge, tone: 'primary' }],
+    });
+  }, [capabilityNotice]);
 
   const handleChange = React.useCallback((field, value) => {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -130,7 +143,6 @@ export default function LoginScreen() {
     }
 
     setSubmitting(true);
-    setSubmitError('');
     try {
       await actions.login?.({
         email: draft.email.trim(),
@@ -138,7 +150,10 @@ export default function LoginScreen() {
       });
       router.replace('/(tabs)/profile');
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : copy.submitError);
+      setDialogState({
+        title: error instanceof Error ? error.message : copy.submitError,
+        actions: [{ label: copy.acknowledge, tone: 'primary' }],
+      });
     } finally {
       setSubmitting(false);
     }
@@ -149,14 +164,6 @@ export default function LoginScreen() {
       <Stack.Screen options={{ title: copy.title }} />
       <AccountingScreen>
         <SectionHeader title={copy.title} subtitle={copy.subtitle} />
-        {capabilityNotice ? (
-          <InfoBanner
-            tone="warning"
-            title={copy.unavailableTitle}
-            description={copy.unavailableDescription}
-          />
-        ) : null}
-        {submitError ? <InfoBanner tone="warning" title={submitError} /> : null}
         <SurfaceCard style={styles.card}>
           <FormField
             label={copy.email}
@@ -188,6 +195,13 @@ export default function LoginScreen() {
             </Link>
           </Text>
         </SurfaceCard>
+        <FeedbackDialog
+          visible={dialogState != null}
+          title={dialogState?.title ?? ''}
+          description={dialogState?.description}
+          actions={dialogState?.actions}
+          onClose={() => setDialogState(null)}
+        />
       </AccountingScreen>
     </>
   );

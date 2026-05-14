@@ -127,6 +127,7 @@ test('authenticated auth api calls attach the bearer token and preserve returned
     currentPassword: 'old-secret',
     nextPassword: 'new-secret',
   });
+  await api.logout();
 
   assert.deepEqual(requests, [
     {
@@ -158,9 +159,42 @@ test('authenticated auth api calls attach the bearer token and preserve returned
         authorization: 'Bearer token-7',
       },
     },
+    {
+      method: 'POST',
+      path: '/auth/logout',
+      body: undefined,
+      headers: {},
+    },
   ]);
   assert.equal(user.name, 'Current User');
   assert.equal(updated.email, 'updated@example.com');
+});
+
+test('auth api normalizes snake_case current ledger ids from /me responses', async () => {
+  const api = createAuthApi({
+    apiClient: {
+      async get() {
+        return {
+          status: true,
+          data: {
+            user: {
+              id: 42,
+              name: 'Ledger User',
+              email: 'ledger@example.com',
+              current_ledger_id: 'ledger-42',
+            },
+          },
+        };
+      },
+      async post() {
+        return { status: true, data: {} };
+      },
+    },
+  });
+
+  const user = await api.getCurrentUser('token-42');
+
+  assert.equal(user.currentLedgerId, 'ledger-42');
 });
 
 test('auth api rejects malformed success payloads defensively', async () => {

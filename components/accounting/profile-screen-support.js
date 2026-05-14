@@ -54,6 +54,14 @@ export function buildProfileHubSections({ availability }) {
       title: '账本与分类',
       rows: [
         {
+          title: '账本管理',
+          subtitle: '查看当前账本、创建账本并切换',
+          meta: '进入',
+          badge: null,
+          disabled: false,
+          href: '/profile/ledger',
+        },
+        {
           title: '分类管理',
           subtitle: '查看收入和支出分类',
           meta: '进入',
@@ -91,4 +99,25 @@ export function buildProfileCapabilityNotice() {
 
 export function getProfileSyncModeCopy(autoSyncEnabled) {
   return autoSyncEnabled ? '自动同步' : '本地优先，手动同步';
+}
+
+export function buildProfileSyncModeRows({ autoSyncEnabled, setAutoSyncEnabled }) {
+  return [
+    {
+      title: '自动同步',
+      subtitle: '有可同步数据时自动发起同步',
+      meta: autoSyncEnabled ? '当前' : '切换',
+      badge: autoSyncEnabled ? { label: '已启用', tone: 'neutral' } : null,
+      disabled: autoSyncEnabled,
+      onPress: () => setAutoSyncEnabled(true),
+    },
+    {
+      title: '本地优先，手动同步',
+      subtitle: '仅在你主动操作时同步待处理数据',
+      meta: autoSyncEnabled ? '切换' : '当前',
+      badge: autoSyncEnabled ? null : { label: '已启用', tone: 'neutral' },
+      disabled: !autoSyncEnabled,
+      onPress: () => setAutoSyncEnabled(false),
+    },
+  ];
 }

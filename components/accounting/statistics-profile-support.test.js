@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { accountingCopy } from '../../constants/accounting-copy.js';
 import {
   getAccountingCategoryLabel,
   getAccountTypeLabel,
@@ -102,11 +103,18 @@ test('builds sync action labels for auto-sync and local-only modes', () => {
     '重试同步'
   );
   assert.equal(
-    getSyncActionLabel('synced', {
+    getSyncActionLabel('pending', {
       isAutoSyncEnabled: false,
       hasPendingChanges: true,
     }),
     '手动同步'
+  );
+  assert.equal(
+    getSyncActionLabel('failed', {
+      isAutoSyncEnabled: false,
+      hasPendingChanges: true,
+    }),
+    accountingCopy.actions.retrySync
   );
   assert.equal(
     getSyncActionLabel('synced', {
@@ -114,5 +122,43 @@ test('builds sync action labels for auto-sync and local-only modes', () => {
       hasPendingChanges: false,
     }),
     null
+  );
+});
+
+test('marks manual sync as in progress while a sync request is running', () => {
+  assert.equal(
+    getSyncActionLabel('pending', {
+      isAutoSyncEnabled: false,
+      hasPendingChanges: true,
+      isSyncInFlight: true,
+    }),
+    '同步中...'
+  );
+});
+
+test('shows unavailable manual sync copy when remote sync is not available', () => {
+  assert.equal(
+    getSyncActionLabel('pending', {
+      isAutoSyncEnabled: false,
+      hasPendingChanges: true,
+      canSyncRemotely: false,
+    }),
+    '暂不可同步'
+  );
+  assert.equal(
+    getSyncSummaryDetail(
+      {
+        status: 'pending',
+        pendingCount: 2,
+        failedCount: 0,
+        updatedAt: '2026-05-11T12:40:00+08:00',
+      },
+      'Asia/Shanghai',
+      {
+        isAutoSyncEnabled: false,
+        canSyncRemotely: false,
+      }
+    ),
+    '最近更新 5月11日 12:40 | 仅保存在本地，当前不可远端同步，请稍后再试，待同步 2 条'
   );
 });

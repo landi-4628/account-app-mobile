@@ -1,10 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Stack, useRouter } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   AccountingScreen,
-  InfoBanner,
+  FeedbackDialog,
   ManagementRow,
   SectionHeader,
   SurfaceCard,
@@ -16,6 +16,7 @@ import {
 import {
   buildProfileCapabilityNotice,
   buildProfileHubSections,
+  buildProfileSyncModeRows,
   getProfileSyncModeCopy,
 } from '@/components/accounting/profile-screen-support';
 import { useAccountingTheme } from '@/components/accounting/use-accounting-theme';
@@ -29,6 +30,12 @@ const copy = {
   timezone: '\u65f6\u533a',
   syncMode: '\u540c\u6b65\u65b9\u5f0f',
   pendingSync: '\u5f85\u540c\u6b65',
+  logout: '退出登录',
+  logoutConfirmTitle: '确认退出登录',
+  logoutConfirmDescription: '退出后将清除当前设备上的登录状态。',
+  cancel: '取消',
+  acknowledge: '知道了',
+  confirm: '退出登录',
 };
 
 function QuickLinkSection({ title, rows }) {
@@ -56,12 +63,17 @@ function sectionTitleStyle(theme) {
 
 export default function ProfileHubScreen() {
   const router = useRouter();
-  const { user, actions, syncSummary, autoSyncEnabled } = useMockApp();
+  const { user, actions, syncSummary, autoSyncEnabled, isAuthenticated } = useMockApp();
   const theme = useAccountingTheme();
   const styles = createStyles(theme);
   const availability = useMemo(() => getActionAvailability(actions), [actions]);
+  const [dialogState, setDialogState] = useState(null);
   const sections = buildProfileHubSections({
     availability,
+  });
+  const syncModeRows = buildProfileSyncModeRows({
+    autoSyncEnabled,
+    setAutoSyncEnabled: actions.setAutoSyncEnabled,
   });
 
   const capabilityNotice =
@@ -69,6 +81,35 @@ export default function ProfileHubScreen() {
     ?? buildCapabilityNotice('passwordChange', availability)
     ?? buildCapabilityNotice('login', availability);
   const capabilityNoticeCopy = capabilityNotice ? buildProfileCapabilityNotice() : null;
+
+  React.useEffect(() => {
+    if (!capabilityNoticeCopy) {
+      return;
+    }
+
+    setDialogState((current) => current ?? {
+      title: capabilityNoticeCopy.title,
+      description: capabilityNoticeCopy.description,
+      actions: [{ label: copy.acknowledge, tone: 'primary' }],
+    });
+  }, [capabilityNoticeCopy]);
+
+  const handleLogoutPress = React.useCallback(() => {
+    setDialogState({
+      title: copy.logoutConfirmTitle,
+      description: copy.logoutConfirmDescription,
+      actions: [
+        { label: copy.cancel, tone: 'secondary' },
+        {
+          label: copy.confirm,
+          tone: 'danger',
+          onPress: () => {
+            void actions.logout?.();
+          },
+        },
+      ],
+    });
+  }, [actions]);
 
   return (
     <>
@@ -100,13 +141,18 @@ export default function ProfileHubScreen() {
             </View>
           </View>
         </SurfaceCard>
-        {capabilityNoticeCopy ? (
-          <InfoBanner
-            tone={capabilityNoticeCopy.tone}
-            title={capabilityNoticeCopy.title}
-            description={capabilityNoticeCopy.description}
-          />
+        {isAuthenticated ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={handleLogoutPress}
+            style={({ pressed }) => [
+              styles.logoutButton,
+              pressed ? styles.logoutButtonPressed : null,
+            ]}>
+            <Text style={styles.logoutButtonLabel}>{copy.logout}</Text>
+          </Pressable>
         ) : null}
+        <QuickLinkSection title={copy.syncMode} rows={syncModeRows} />
         {sections.map((section) => (
           <QuickLinkSection
             key={section.title}
@@ -117,6 +163,13 @@ export default function ProfileHubScreen() {
             }))}
           />
         ))}
+        <FeedbackDialog
+          visible={dialogState != null}
+          title={dialogState?.title ?? ''}
+          description={dialogState?.description}
+          actions={dialogState?.actions}
+          onClose={() => setDialogState(null)}
+        />
       </AccountingScreen>
     </>
   );
@@ -151,6 +204,24 @@ function createStyles({ colors, spacing, typography }) {
       fontWeight: '600',
       color: colors.text,
       textAlign: 'right',
+    },
+    logoutButton: {
+      minHeight: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.danger,
+      backgroundColor: colors.surface,
+      paddingHorizontal: spacing.md,
+    },
+    logoutButtonPressed: {
+      opacity: 0.85,
+    },
+    logoutButtonLabel: {
+      fontSize: typography.body,
+      fontWeight: '700',
+      color: colors.danger,
     },
   });
 }

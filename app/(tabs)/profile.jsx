@@ -1,6 +1,6 @@
 import React from 'react';
 import { useRouter } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 
 import { accountingCopy } from '@/constants/accounting-copy';
 import {
@@ -9,8 +9,13 @@ import {
   SectionHeader,
   SyncSummaryRow,
 } from '@/components/accounting';
-import { buildProfileOverviewLinks } from '@/components/accounting/profile-screen-support';
 import {
+  buildProfileOverviewLinks,
+  getProfileSyncModeCopy,
+} from '@/components/accounting/profile-screen-support';
+import {
+  getManualSyncUnavailableMessage,
+  getSyncActionLabel,
   getSyncSummaryDetail,
 } from '@/components/accounting/statistics-profile-support';
 import { useAccountingTheme } from '@/components/accounting/use-accounting-theme';
@@ -54,15 +59,44 @@ function ProfileEntryCard({ title, subtitle, rows, onPress }) {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, syncSummary, autoSyncEnabled } = useMockApp();
+  const { user, syncSummary, autoSyncEnabled, canSyncRemotely, syncInFlight, actions } = useMockApp();
   const { colors, spacing, radius, typography, shadow } = useAccountingTheme();
   const styles = createStyles(colors, spacing, radius, typography, shadow);
 
   const profileEntryRows = [
     { label: accountingCopy.profile.ledger, value: user.ledgerName },
     { label: accountingCopy.profile.email, value: user.email },
+    { label: accountingCopy.profile.syncMode, value: getProfileSyncModeCopy(autoSyncEnabled) },
   ];
   const managementRows = buildProfileOverviewLinks();
+  const hasPendingChanges = syncSummary.pendingCount > 0 || syncSummary.failedCount > 0;
+  const syncActionLabel = getSyncActionLabel(syncSummary.status, {
+    isAutoSyncEnabled: autoSyncEnabled,
+    hasPendingChanges,
+    canSyncRemotely,
+    isSyncInFlight: syncInFlight,
+  });
+  const syncSummaryDetail = getSyncSummaryDetail(syncSummary, user.timezone, {
+    isAutoSyncEnabled: autoSyncEnabled,
+    canSyncRemotely,
+  });
+  const syncUnavailableMessage = getManualSyncUnavailableMessage({
+    hasPendingChanges,
+    canSyncRemotely,
+  });
+
+  const handleSyncActionPress = () => {
+    if (syncInFlight) {
+      return;
+    }
+
+    if (!canSyncRemotely && hasPendingChanges) {
+      Alert.alert('\u6682\u65f6\u65e0\u6cd5\u540c\u6b65', syncUnavailableMessage);
+      return;
+    }
+
+    void actions.syncPendingTransactions();
+  };
 
   return (
     <AccountingScreen>
@@ -78,7 +112,10 @@ export default function ProfileScreen() {
         pendingCount={syncSummary.pendingCount}
         failedCount={syncSummary.failedCount}
         label={accountingCopy.profile.syncStatus}
-        detail={getSyncSummaryDetail(syncSummary, user.timezone, { isAutoSyncEnabled: autoSyncEnabled })}
+        detail={syncSummaryDetail}
+        actionLabel={syncActionLabel}
+        actionDisabled={syncInFlight}
+        onActionPress={handleSyncActionPress}
       />
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{copy.tools}</Text>

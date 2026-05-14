@@ -4,8 +4,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   AccountingScreen,
+  FeedbackDialog,
   FormField,
-  InfoBanner,
   SectionHeader,
   SurfaceCard,
 } from '@/components/accounting';
@@ -34,6 +34,7 @@ const copy = {
   emailError: '\u8bf7\u8f93\u5165\u6709\u6548\u7684\u90ae\u7bb1\u5730\u5740',
   ledgerNameError: '\u8bf7\u8f93\u5165\u8d26\u672c\u540d\u79f0',
   timezoneError: '\u8bf7\u8f93\u5165\u65f6\u533a',
+  acknowledge: '知道了',
 };
 
 function ActionButton({ label, onPress, disabled, tone = 'primary' }) {
@@ -106,8 +107,20 @@ export default function EditProfileScreen() {
   const availability = useMemo(() => getActionAvailability(actions), [actions]);
   const [draft, setDraft] = useState(() => buildProfileFormDraft(user));
   const [errors, setErrors] = useState({});
-  const [submitError, setSubmitError] = useState('');
+  const [dialogState, setDialogState] = useState(null);
   const capabilityNotice = buildCapabilityNotice('profileEdit', availability);
+
+  React.useEffect(() => {
+    if (!capabilityNotice) {
+      return;
+    }
+
+    setDialogState((current) => current ?? {
+      title: copy.unavailableTitle,
+      description: copy.unavailableDescription,
+      actions: [{ label: copy.acknowledge, tone: 'primary' }],
+    });
+  }, [capabilityNotice]);
 
   const handleChange = React.useCallback((field, value) => {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -134,7 +147,10 @@ export default function EditProfileScreen() {
       await actions.updateProfile?.(draft);
       router.back();
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : copy.submitError);
+      setDialogState({
+        title: error instanceof Error ? error.message : copy.submitError,
+        actions: [{ label: copy.acknowledge, tone: 'primary' }],
+      });
     }
   }, [actions, availability.canUpdateProfile, draft, router]);
 
@@ -143,14 +159,6 @@ export default function EditProfileScreen() {
       <Stack.Screen options={{ title: copy.title }} />
       <AccountingScreen>
         <SectionHeader title={copy.title} subtitle={copy.subtitle} />
-        {capabilityNotice ? (
-          <InfoBanner
-            tone="warning"
-            title={copy.unavailableTitle}
-            description={copy.unavailableDescription}
-          />
-        ) : null}
-        {submitError ? <InfoBanner tone="warning" title={submitError} /> : null}
         <SurfaceCard style={styles.card}>
           <FormField
             label={copy.name}
@@ -189,6 +197,13 @@ export default function EditProfileScreen() {
             />
           </View>
         </SurfaceCard>
+        <FeedbackDialog
+          visible={dialogState != null}
+          title={dialogState?.title ?? ''}
+          description={dialogState?.description}
+          actions={dialogState?.actions}
+          onClose={() => setDialogState(null)}
+        />
       </AccountingScreen>
     </>
   );

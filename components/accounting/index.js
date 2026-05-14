@@ -1,4 +1,5 @@
 export { EmptyState } from './empty-state.js';
+export { FeedbackDialog } from './feedback-dialog.js';
 export { FormField } from './form-field.js';
 export {
   formatAccountingCurrency,

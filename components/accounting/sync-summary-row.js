@@ -18,6 +18,7 @@ import { useAccountingTheme } from './use-accounting-theme.js';
  *   label?: string | undefined,
  *   detail?: string | undefined,
  *   actionLabel?: string | undefined,
+ *   actionDisabled?: boolean | undefined,
  *   onActionPress?: (() => void) | undefined,
  * }} props
  */
@@ -28,6 +29,7 @@ export function SyncSummaryRow({
   label,
   detail,
   actionLabel,
+  actionDisabled = false,
   onActionPress,
 }) {
   const { colors, spacing, radius, typography } = useAccountingTheme();
@@ -47,8 +49,14 @@ export function SyncSummaryRow({
       {actionLabel ? (
         <Pressable
           accessibilityRole="button"
+          accessibilityState={{ disabled: actionDisabled }}
+          disabled={actionDisabled}
           onPress={onActionPress}
-          style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}>
+          style={({ pressed }) => [
+            styles.action,
+            actionDisabled && styles.actionDisabled,
+            pressed && !actionDisabled && styles.actionPressed,
+          ]}>
           <Text style={styles.actionLabel}>{actionLabel}</Text>
         </Pressable>
       ) : null}
@@ -90,6 +98,9 @@ function createStyles(colors, spacing, radius, typography) {
     },
     actionPressed: {
       opacity: 0.8,
+    },
+    actionDisabled: {
+      opacity: 0.45,
     },
     actionLabel: {
       fontSize: typography.body,

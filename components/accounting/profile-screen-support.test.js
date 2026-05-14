@@ -67,6 +67,12 @@ test('builds chinese app sections for the profile hub', () => {
         title: '账本与分类',
         rows: [
           {
+            title: '账本管理',
+            meta: '进入',
+            badge: null,
+            disabled: false,
+          },
+          {
             title: '分类管理',
             meta: '进入',
             badge: null,

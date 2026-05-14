@@ -4,8 +4,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   AccountingScreen,
+  FeedbackDialog,
   FormField,
-  InfoBanner,
   SectionHeader,
   SurfaceCard,
 } from '@/components/accounting';
@@ -31,6 +31,7 @@ const copy = {
   confirmPasswordError: '\u4e24\u6b21\u8f93\u5165\u7684\u5bc6\u7801\u4e0d\u4e00\u81f4',
   cancel: '\u53d6\u6d88',
   submit: '\u66f4\u65b0\u5bc6\u7801',
+  acknowledge: '知道了',
 };
 
 function PasswordButton({ label, onPress, disabled, secondary = false }) {
@@ -102,8 +103,20 @@ export default function ChangePasswordScreen() {
     confirmPassword: '',
   });
   const [errors, setErrors] = useState({});
-  const [submitError, setSubmitError] = useState('');
+  const [dialogState, setDialogState] = useState(null);
   const capabilityNotice = buildCapabilityNotice('passwordChange', availability);
+
+  React.useEffect(() => {
+    if (!capabilityNotice) {
+      return;
+    }
+
+    setDialogState((current) => current ?? {
+      title: copy.unavailableTitle,
+      description: copy.unavailableDescription,
+      actions: [{ label: copy.acknowledge, tone: 'primary' }],
+    });
+  }, [capabilityNotice]);
 
   const handleChange = React.useCallback((field, value) => {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -130,7 +143,10 @@ export default function ChangePasswordScreen() {
       await actions.changePassword?.(draft);
       router.back();
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : copy.submitError);
+      setDialogState({
+        title: error instanceof Error ? error.message : copy.submitError,
+        actions: [{ label: copy.acknowledge, tone: 'primary' }],
+      });
     }
   }, [actions, availability.canChangePassword, draft, router]);
 
@@ -139,14 +155,6 @@ export default function ChangePasswordScreen() {
       <Stack.Screen options={{ title: copy.title }} />
       <AccountingScreen>
         <SectionHeader title={copy.title} subtitle={copy.subtitle} />
-        {capabilityNotice ? (
-          <InfoBanner
-            tone="warning"
-            title={copy.unavailableTitle}
-            description={copy.unavailableDescription}
-          />
-        ) : null}
-        {submitError ? <InfoBanner tone="warning" title={submitError} /> : null}
         <SurfaceCard style={styles.card}>
           <FormField
             label={copy.currentPassword}
@@ -178,6 +186,13 @@ export default function ChangePasswordScreen() {
             />
           </View>
         </SurfaceCard>
+        <FeedbackDialog
+          visible={dialogState != null}
+          title={dialogState?.title ?? ''}
+          description={dialogState?.description}
+          actions={dialogState?.actions}
+          onClose={() => setDialogState(null)}
+        />
       </AccountingScreen>
     </>
   );

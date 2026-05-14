@@ -11,6 +11,7 @@ import React, {
 import { ActivityIndicator, Modal, Text, View } from 'react-native';
 import { createApiClient } from '../lib/api-client.js';
 import { createAuthApi } from '../lib/auth-api.js';
+import { createLedgerApi } from '../lib/ledger-api.js';
 import {
   buildDefinitionsPushPayload,
   buildRemoteReferenceMaps,
@@ -46,7 +47,11 @@ import {
   repoCategoryRowToLedger,
 } from './local-definition-mappers.js';
 import { useAccountingTheme } from '../components/accounting/use-accounting-theme';
-import { getSyncableTransactions, shouldAutoSync } from './mock-app-sync-support.js';
+import {
+  getManualSyncPlan,
+  getSyncableTransactions,
+  shouldAutoSync,
+} from './mock-app-sync-support.js';
 
 /**
  * 数据策略：业务读写以本地快照与 SQLite 为准（秒开、离线可用）；有网且开启自动同步时
@@ -66,6 +71,7 @@ import { getSyncableTransactions, shouldAutoSync } from './mock-app-sync-support
  * @typedef {ReturnType<typeof createInitialMockAppState>} MockAppState
  * @typedef {ReturnType<typeof selectCurrentMonthData>} CurrentMonthData
  * @typedef {import('../lib/auth-api.js').RemoteAuthUser} RemoteAuthUser
+ * @typedef {import('../lib/ledger-api.js').RemoteLedger} RemoteLedger
  * @typedef {LedgerCategory & { remoteId?: string | undefined, updatedAt?: string | undefined, deletedAt?: string | null, color?: string | undefined }} LocalLedgerCategory
  * @typedef {TransactionRecord & { remoteId?: string | undefined, updatedAt?: string | undefined, deletedAt?: string | null, syncError?: string | null, syncedAt?: string | null }} LocalTransactionRecord
  */
@@ -86,8 +92,12 @@ import { getSyncableTransactions, shouldAutoSync } from './mock-app-sync-support
  * @property {(categoryId: string) => Promise<void>} deleteCategory
  * @property {(enabled: boolean) => void} setAutoSyncEnabled
  * @property {() => Promise<void>} syncPendingTransactions
+ * @property {() => Promise<{ currentLedgerId: string | null, ledgers: RemoteLedger[] }>} loadMyLedgers
+ * @property {(input: { name: string, baseCurrency?: string | null | undefined }) => Promise<RemoteLedger>} createLedger
+ * @property {(ledgerId: string) => Promise<{ currentLedgerId: string | null }>} switchLedger
  * @property {(input: { email: string, password: string }) => Promise<unknown>} login
  * @property {(input: { name: string, email: string, password: string }) => Promise<unknown>} register
+ * @property {() => Promise<void>} logout
  * @property {(input: { name: string, email: string, ledgerName: string, timezone: string }) => Promise<unknown>} updateProfile
  * @property {(input: { currentPassword: string, nextPassword: string, confirmPassword: string }) => Promise<void>} changePassword
  */
@@ -111,6 +121,10 @@ import { getSyncableTransactions, shouldAutoSync } from './mock-app-sync-support
  * @property {CurrentMonthData} currentMonthData
  * @property {SyncSummary} syncSummary
  * @property {boolean} autoSyncEnabled
+ * @property {RemoteLedger | null} currentLedger
+ * @property {RemoteLedger[]} myLedgers
+ * @property {boolean} isAuthenticated
+ * @property {boolean} canSyncRemotely
  * @property {boolean} syncInFlight
  * @property {boolean} ledgerBootstrapLoading
  * @property {string[]} availableMonths
@@ -167,10 +181,23 @@ export function MockAppProvider({ children }) {
   const lastAuthenticatedUserIdRef = useRef(/** @type {string | null} */ (null));
   const skipNextRemoteLedgerPullRef = useRef(false);
   const [ledgerBootstrapLoading, setLedgerBootstrapLoading] = useState(false);
+  const [myLedgers, setMyLedgers] = useState(() => buildLocalLedgerCollection(state.user).ledgers);
+  const [currentLedgerId, setCurrentLedgerId] = useState(
+    () => buildLocalLedgerCollection(state.user).currentLedgerId
+  );
 
   const authApi = useMemo(
     () =>
       createAuthApi({
+        apiClient: createApiClient({
+          baseUrl: REMOTE_API_BASE_URL,
+        }),
+      }),
+    []
+  );
+  const ledgerApi = useMemo(
+    () =>
+      createLedgerApi({
         apiClient: createApiClient({
           baseUrl: REMOTE_API_BASE_URL,
         }),
@@ -205,8 +232,13 @@ export function MockAppProvider({ children }) {
   const persistedDefinitions = useMemo(() => selectPersistedCustomDefinitions(state), [state]);
   const syncableTransactions = useMemo(() => getSyncableTransactions(state.transactions), [state.transactions]);
   const remoteAccessToken = authSession?.accessToken ?? null;
-  const remoteLedgerId = remoteUser?.currentLedgerId ?? null;
+  const remoteLedgerId = resolveRemoteLedgerId(remoteUser);
+  const currentLedger = useMemo(
+    () => myLedgers.find((ledger) => ledger.id === currentLedgerId) ?? myLedgers[0] ?? null,
+    [currentLedgerId, myLedgers]
+  );
   const canSyncRemotely = Boolean(remoteAccessToken && remoteLedgerId != null);
+  const isAuthenticated = Boolean(authSession?.accessToken);
   const ownerUserId = authSession?.userId ?? '';
 
   const persistCustomCategory = useCallback(
@@ -334,7 +366,7 @@ export function MockAppProvider({ children }) {
 
       try {
         const token = result.session.accessToken;
-        const ledgerId = result.user?.currentLedgerId;
+        const ledgerId = resolveRemoteLedgerId(result.user);
         if (token != null && ledgerId != null) {
           setLedgerBootstrapLoading(true);
           try {
@@ -425,6 +457,54 @@ export function MockAppProvider({ children }) {
       active = false;
     };
   }, [authApi, authSession?.accessToken, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+
+    let active = true;
+
+    async function hydrateLedgers() {
+      if (!remoteAccessToken) {
+        const fallback = buildLocalLedgerCollection(state.user);
+        if (active) {
+          setMyLedgers(fallback.ledgers);
+          setCurrentLedgerId(fallback.currentLedgerId);
+        }
+        return;
+      }
+
+      try {
+        const result = await ledgerApi.listMyLedgers(remoteAccessToken);
+        const nextCurrentLedgerId = result.currentLedgerId ?? result.ledgers[0]?.id ?? null;
+
+        if (!active) {
+          return;
+        }
+
+        setMyLedgers(result.ledgers);
+        setCurrentLedgerId(nextCurrentLedgerId);
+        setRemoteUser((current) =>
+          applySelectedLedgerToRemoteUser(current, result.ledgers, nextCurrentLedgerId)
+        );
+      } catch {
+        if (!active) {
+          return;
+        }
+
+        const fallback = buildLocalLedgerCollection(state.user);
+        setMyLedgers(fallback.ledgers);
+        setCurrentLedgerId(fallback.currentLedgerId);
+      }
+    }
+
+    void hydrateLedgers();
+
+    return () => {
+      active = false;
+    };
+  }, [hydrated, ledgerApi, remoteAccessToken, state.user]);
 
   useEffect(() => {
     if (!hydrated) {
@@ -554,33 +634,116 @@ export function MockAppProvider({ children }) {
       return;
     }
 
-    const syncableIds = getSyncableTransactions(state.transactions).map((transaction) => transaction.id);
-    if (syncableIds.length === 0) {
+    const syncPlan = getManualSyncPlan({
+      canSyncRemotely,
+      syncableCount: syncableTransactions.length,
+    });
+
+    if (syncPlan.type === 'noop') {
       return;
     }
 
     setSyncInFlight(true);
 
     try {
-      if (canSyncRemotely) {
+      if (syncPlan.type === 'remote') {
         await syncRemoteState(state);
-        return;
       }
-
-      const updatedAt = new Date().toISOString();
-
-      syncableIds.forEach((transactionId, index) => {
-        dispatch({
-          type: 'updateTransactionSyncStatus',
-          transactionId,
-          syncStatus: 'synced',
-          updatedAt: index === syncableIds.length - 1 ? updatedAt : undefined,
-        });
-      });
     } finally {
       setSyncInFlight(false);
     }
-  }, [canSyncRemotely, state, state.transactions, syncInFlight, syncRemoteState]);
+  }, [canSyncRemotely, state, syncInFlight, syncRemoteState, syncableTransactions.length]);
+
+  const logout = useCallback(async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      // Best effort on the remote side; local session still needs to be cleared.
+    }
+
+    setAuthSession(null);
+    setRemoteUser(null);
+    lastAuthenticatedUserIdRef.current = null;
+    await mockAppRuntimeStorageAdapter.clearAuthSession(MOCK_APP_AUTH_SESSION_STORAGE_KEY);
+  }, [authApi]);
+
+  const loadMyLedgers = useCallback(async () => {
+    if (!remoteAccessToken) {
+      const fallback = buildLocalLedgerCollection(state.user);
+      setMyLedgers(fallback.ledgers);
+      setCurrentLedgerId(fallback.currentLedgerId);
+      return fallback;
+    }
+
+    const result = await ledgerApi.listMyLedgers(remoteAccessToken);
+    const nextCurrentLedgerId = result.currentLedgerId ?? result.ledgers[0]?.id ?? null;
+    setMyLedgers(result.ledgers);
+    setCurrentLedgerId(nextCurrentLedgerId);
+    setRemoteUser((current) =>
+      applySelectedLedgerToRemoteUser(current, result.ledgers, nextCurrentLedgerId)
+    );
+    return {
+      currentLedgerId: nextCurrentLedgerId,
+      ledgers: result.ledgers,
+    };
+  }, [ledgerApi, remoteAccessToken, state.user]);
+
+  const createLedger = useCallback(
+    async ({ name, baseCurrency }) => {
+      const trimmedName = String(name ?? '').trim();
+      if (!trimmedName) {
+        throw new Error('Ledger name is required');
+      }
+
+      if (!remoteAccessToken) {
+        const ledger = {
+          id: `local-ledger-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          name: trimmedName,
+          baseCurrency: baseCurrency ?? state.user.currency ?? 'CNY',
+          ownerUserId: state.user.id,
+        };
+        setMyLedgers((current) => [...current, ledger]);
+        setCurrentLedgerId(ledger.id);
+        return ledger;
+      }
+
+      const result = await ledgerApi.createLedger(remoteAccessToken, {
+        name: trimmedName,
+        baseCurrency,
+      });
+      const nextLedgers = upsertLedger(myLedgers, result.ledger);
+      const nextCurrentLedgerId = result.currentLedgerId ?? result.ledger.id;
+      setMyLedgers(nextLedgers);
+      setCurrentLedgerId(nextCurrentLedgerId);
+      setRemoteUser((current) =>
+        applySelectedLedgerToRemoteUser(current, nextLedgers, nextCurrentLedgerId)
+      );
+      return result.ledger;
+    },
+    [ledgerApi, myLedgers, remoteAccessToken, state.user.currency, state.user.id]
+  );
+
+  const switchLedger = useCallback(
+    async (ledgerId) => {
+      const targetLedgerId = String(ledgerId);
+
+      if (!remoteAccessToken) {
+        setCurrentLedgerId(targetLedgerId);
+        return { currentLedgerId: targetLedgerId };
+      }
+
+      const result = await ledgerApi.switchLedger(remoteAccessToken, targetLedgerId);
+      const nextCurrentLedgerId = result.currentLedgerId ?? targetLedgerId;
+      setCurrentLedgerId(nextCurrentLedgerId);
+      setRemoteUser((current) =>
+        applySelectedLedgerToRemoteUser(current, myLedgers, nextCurrentLedgerId)
+      );
+      return {
+        currentLedgerId: nextCurrentLedgerId,
+      };
+    },
+    [ledgerApi, myLedgers, remoteAccessToken]
+  );
 
   useEffect(() => {
     if (
@@ -598,8 +761,8 @@ export function MockAppProvider({ children }) {
   }, [autoSyncEnabled, hydrated, syncInFlight, syncPendingTransactions, syncableTransactions.length]);
 
   const effectiveUser = useMemo(
-    () => mergeAccountingUser(state.user, remoteUser ?? undefined),
-    [remoteUser, state.user]
+    () => mergeAccountingUser(state.user, remoteUser ?? undefined, currentLedger ?? undefined),
+    [currentLedger, remoteUser, state.user]
   );
 
   /** @type {MockAppContextValue} */
@@ -616,6 +779,10 @@ export function MockAppProvider({ children }) {
       currentMonthData,
       syncSummary,
       autoSyncEnabled,
+      currentLedger,
+      myLedgers,
+      isAuthenticated,
+      canSyncRemotely,
       syncInFlight,
       ledgerBootstrapLoading,
       availableMonths: currentMonthData.availableMonths,
@@ -672,6 +839,9 @@ export function MockAppProvider({ children }) {
             syncStatus,
             updatedAt,
           }),
+        loadMyLedgers,
+        createLedger,
+        switchLedger,
         addCategory: async ({ name, type }) => {
           const category = createCustomCategoryRecord(name, type);
           /** @type {MockAppAction} */
@@ -805,6 +975,7 @@ export function MockAppProvider({ children }) {
           const result = await authApi.register({ name, email, password });
           return completeSessionFromAuthResponse(result);
         },
+        logout,
         updateProfile: async (draft) => {
           if (!authSession?.accessToken) {
             throw new Error('You need to sign in before updating the profile');
@@ -837,23 +1008,30 @@ export function MockAppProvider({ children }) {
       autoSyncEnabled,
       canSyncRemotely,
       categoryRepo,
+      createLedger,
       currentMonthData,
+      currentLedger,
       definitionsApi,
       effectiveUser,
       hydrateRemoteLedgerState,
+      loadMyLedgers,
       ledgerSyncApi,
       ownerUserId,
       persistCustomCategory,
       reduceState,
       remoteAccessToken,
+      myLedgers,
+      isAuthenticated,
       seededMonthlyStatistics,
       state,
+      switchLedger,
       syncInFlight,
       syncRemoteState,
       syncPendingTransactions,
       syncSummary,
       completeSessionFromAuthResponse,
       ledgerBootstrapLoading,
+      logout,
     ]
   );
 
@@ -919,10 +1097,17 @@ function LedgerBootstrapBackdrop() {
  *   ledgerName?: string | undefined,
  *   timezone?: string | undefined,
  * }} [remoteUser]
+ * @param {{ name?: string | undefined } | undefined} [currentLedger]
  */
-function mergeAccountingUser(baseUser, remoteUser) {
+function mergeAccountingUser(baseUser, remoteUser, currentLedger) {
   if (!remoteUser) {
-    return baseUser;
+    return {
+      ...baseUser,
+      ledgerName:
+        typeof currentLedger?.name === 'string' && currentLedger.name
+          ? currentLedger.name
+          : baseUser.ledgerName,
+    };
   }
 
   return {
@@ -930,9 +1115,21 @@ function mergeAccountingUser(baseUser, remoteUser) {
     id: remoteUser.id == null ? baseUser.id : String(remoteUser.id),
     name: typeof remoteUser.name === 'string' ? remoteUser.name : baseUser.name,
     email: typeof remoteUser.email === 'string' ? remoteUser.email : baseUser.email,
-    ledgerName: typeof remoteUser.ledgerName === 'string' ? remoteUser.ledgerName : baseUser.ledgerName,
+    ledgerName:
+      typeof currentLedger?.name === 'string' && currentLedger.name
+        ? currentLedger.name
+        : typeof remoteUser.ledgerName === 'string'
+          ? remoteUser.ledgerName
+          : baseUser.ledgerName,
     timezone: typeof remoteUser.timezone === 'string' ? remoteUser.timezone : baseUser.timezone,
   };
+}
+
+/**
+ * @param {{ currentLedgerId?: string | null | undefined, current_ledger_id?: string | null | undefined } | null | undefined} remoteUser
+ */
+function resolveRemoteLedgerId(remoteUser) {
+  return remoteUser?.currentLedgerId ?? remoteUser?.current_ledger_id ?? null;
 }
 
 /**
@@ -947,6 +1144,57 @@ function createCustomCategoryRecord(name, type) {
     type,
     isActive: true,
     isCustom: true,
+  };
+}
+
+/**
+ * @param {import('../types/accounting.js').AccountingUser} user
+ * @returns {{ currentLedgerId: string, ledgers: RemoteLedger[] }}
+ */
+function buildLocalLedgerCollection(user) {
+  const ledger = {
+    id: 'local-ledger-default',
+    name: user.ledgerName,
+    baseCurrency: user.currency ?? 'CNY',
+    ownerUserId: user.id,
+  };
+
+  return {
+    currentLedgerId: ledger.id,
+    ledgers: [ledger],
+  };
+}
+
+/**
+ * @param {RemoteLedger[]} ledgers
+ * @param {RemoteLedger} ledger
+ * @returns {RemoteLedger[]}
+ */
+function upsertLedger(ledgers, ledger) {
+  const index = ledgers.findIndex((item) => item.id === ledger.id);
+  if (index === -1) {
+    return [...ledgers, ledger];
+  }
+
+  return ledgers.map((item) => (item.id === ledger.id ? ledger : item));
+}
+
+/**
+ * @param {(RemoteAuthUser & { ledgerName?: string | undefined, timezone?: string | undefined }) | null} current
+ * @param {RemoteLedger[]} ledgers
+ * @param {string | null} currentLedgerId
+ */
+function applySelectedLedgerToRemoteUser(current, ledgers, currentLedgerId) {
+  if (!current) {
+    return current;
+  }
+
+  const selected = ledgers.find((ledger) => ledger.id === currentLedgerId) ?? null;
+
+  return {
+    ...current,
+    currentLedgerId,
+    ledgerName: selected?.name ?? current.ledgerName,
   };
 }
 

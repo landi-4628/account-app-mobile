@@ -4,8 +4,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 
 import {
   AccountingScreen,
+  FeedbackDialog,
   FormField,
-  InfoBanner,
   SectionHeader,
   SurfaceCard,
 } from '@/components/accounting';
@@ -37,6 +37,7 @@ const copy = {
   submitting: '\u6ce8\u518c\u4e2d\u2026',
   loginPrompt: '\u5df2\u6709\u8d26\u53f7\uff1f',
   loginLink: '\u53bb\u767b\u5f55',
+  acknowledge: '知道了',
 };
 
 function RegisterButton({ label, onPress, disabled, secondary = false, loading = false }) {
@@ -108,9 +109,21 @@ export default function RegisterScreen() {
   const availability = useMemo(() => getActionAvailability(actions), [actions]);
   const [draft, setDraft] = useState(() => buildAuthFormDraft('register'));
   const [errors, setErrors] = useState({});
-  const [submitError, setSubmitError] = useState('');
+  const [dialogState, setDialogState] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const capabilityNotice = buildCapabilityNotice('register', availability);
+
+  React.useEffect(() => {
+    if (!capabilityNotice) {
+      return;
+    }
+
+    setDialogState((current) => current ?? {
+      title: copy.unavailableTitle,
+      description: copy.unavailableDescription,
+      actions: [{ label: copy.acknowledge, tone: 'primary' }],
+    });
+  }, [capabilityNotice]);
 
   const handleChange = React.useCallback((field, value) => {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -134,7 +147,6 @@ export default function RegisterScreen() {
     }
 
     setSubmitting(true);
-    setSubmitError('');
     try {
       await actions.register?.({
         name: draft.name.trim(),
@@ -143,7 +155,10 @@ export default function RegisterScreen() {
       });
       router.replace('/(tabs)/profile');
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : copy.submitError);
+      setDialogState({
+        title: error instanceof Error ? error.message : copy.submitError,
+        actions: [{ label: copy.acknowledge, tone: 'primary' }],
+      });
     } finally {
       setSubmitting(false);
     }
@@ -154,14 +169,6 @@ export default function RegisterScreen() {
       <Stack.Screen options={{ title: copy.title }} />
       <AccountingScreen>
         <SectionHeader title={copy.title} subtitle={copy.subtitle} />
-        {capabilityNotice ? (
-          <InfoBanner
-            tone="warning"
-            title={copy.unavailableTitle}
-            description={copy.unavailableDescription}
-          />
-        ) : null}
-        {submitError ? <InfoBanner tone="warning" title={submitError} /> : null}
         <SurfaceCard style={styles.card}>
           <FormField
             label={copy.name}
@@ -207,6 +214,13 @@ export default function RegisterScreen() {
             </Link>
           </Text>
         </SurfaceCard>
+        <FeedbackDialog
+          visible={dialogState != null}
+          title={dialogState?.title ?? ''}
+          description={dialogState?.description}
+          actions={dialogState?.actions}
+          onClose={() => setDialogState(null)}
+        />
       </AccountingScreen>
     </>
   );

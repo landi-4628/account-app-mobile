@@ -4,8 +4,8 @@ import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   AccountingScreen,
+  FeedbackDialog,
   FormField,
-  InfoBanner,
   ManagementRow,
   SectionHeader,
   SurfaceCard,
@@ -49,6 +49,7 @@ const copy = {
   deleteAction: '\u5220\u9664',
   cancelAction: '\u53d6\u6d88',
   editAction: '\u7f16\u8f91',
+  acknowledge: '知道了',
 };
 
 function EntryTypePicker({ value, onChange, disabled }) {
@@ -168,7 +169,7 @@ export default function CategoriesScreen() {
   const availability = useMemo(() => getActionAvailability(actions), [actions]);
   const [entryType, setEntryType] = useState('expense');
   const [name, setName] = useState('');
-  const [submitError, setSubmitError] = useState('');
+  const [dialogState, setDialogState] = useState(null);
   const [editCategory, setEditCategory] = useState(
     /** @type {{ id: string, name: string, type: string } | null} */ (null)
   );
@@ -180,6 +181,18 @@ export default function CategoriesScreen() {
   );
   const createNotice = buildCapabilityNotice('categoriesCreate', availability);
   const manageNotice = buildCapabilityNotice('categoriesManage', availability);
+
+  React.useEffect(() => {
+    if (!createNotice && !manageNotice) {
+      return;
+    }
+
+    setDialogState((current) => current ?? {
+      title: createNotice ? copy.createUnavailableTitle : copy.manageUnavailableTitle,
+      description: createNotice ? copy.createUnavailableDescription : copy.manageUnavailableDescription,
+      actions: [{ label: copy.acknowledge, tone: 'primary' }],
+    });
+  }, [createNotice, manageNotice]);
 
   const openCategoryMenu = React.useCallback(
     (row) => {
@@ -238,9 +251,11 @@ export default function CategoriesScreen() {
         type: entryType,
       });
       setName('');
-      setSubmitError('');
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : copy.submitError);
+      setDialogState({
+        title: error instanceof Error ? error.message : copy.submitError,
+        actions: [{ label: copy.acknowledge, tone: 'primary' }],
+      });
     }
   }, [actions, availability.canCreateCategories, entryType, name]);
 
@@ -260,21 +275,6 @@ export default function CategoriesScreen() {
       <Stack.Screen options={{ title: copy.title }} />
       <AccountingScreen>
         <SectionHeader title={copy.title} subtitle={copy.subtitle} />
-        {createNotice ? (
-          <InfoBanner
-            tone="warning"
-            title={copy.createUnavailableTitle}
-            description={copy.createUnavailableDescription}
-          />
-        ) : null}
-        {manageNotice ? (
-          <InfoBanner
-            tone="warning"
-            title={copy.manageUnavailableTitle}
-            description={copy.manageUnavailableDescription}
-          />
-        ) : null}
-        {submitError ? <InfoBanner tone="warning" title={submitError} /> : null}
         <Text style={styles.hint}>{copy.editHint}</Text>
         <SurfaceCard style={styles.card}>
           <Text style={styles.sectionTitle}>{copy.newCategory}</Text>
@@ -352,6 +352,13 @@ export default function CategoriesScreen() {
             </SurfaceCard>
           </View>
         </Modal>
+        <FeedbackDialog
+          visible={dialogState != null}
+          title={dialogState?.title ?? ''}
+          description={dialogState?.description}
+          actions={dialogState?.actions}
+          onClose={() => setDialogState(null)}
+        />
       </AccountingScreen>
     </>
   );

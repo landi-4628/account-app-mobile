@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   getSyncableTransactions,
+  getManualSyncPlan,
   shouldAutoSync,
 } from './mock-app-sync-support.js';
 
@@ -54,5 +55,41 @@ test('auto sync only runs when enabled, idle, and candidates exist', () => {
       syncableCount: 0,
     }),
     false
+  );
+});
+
+test('manual sync uses remote path when remote is available', () => {
+  assert.deepEqual(
+    getManualSyncPlan({
+      canSyncRemotely: true,
+      syncableCount: 2,
+    }),
+    {
+      type: 'remote',
+    }
+  );
+});
+
+test('manual sync defers candidates when remote is unavailable', () => {
+  assert.deepEqual(
+    getManualSyncPlan({
+      canSyncRemotely: false,
+      syncableCount: 2,
+    }),
+    {
+      type: 'defer',
+    }
+  );
+});
+
+test('manual sync is a no-op when there are no candidates', () => {
+  assert.deepEqual(
+    getManualSyncPlan({
+      canSyncRemotely: true,
+      syncableCount: 0,
+    }),
+    {
+      type: 'noop',
+    }
   );
 });
