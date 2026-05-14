@@ -111,6 +111,68 @@ test('marks deleted local transactions as tombstones in sync payloads', () => {
   });
 });
 
+test('skips deleted local transactions that were never synced remotely', () => {
+  const payload = buildTransactionsPushPayload(
+    [
+      {
+        id: 'tx-local-deleted',
+        type: 'expense',
+        amount: 1800,
+        accountId: 'acc-cash',
+        categoryId: 'cat-food',
+        note: 'Deleted before first sync',
+        transactionAt: '2026-05-13T12:30:00.000Z',
+        deletedAt: '2026-05-13T13:00:00.000Z',
+      },
+    ],
+    {
+      categoryIds: new Map(),
+    }
+  );
+
+  assert.deepEqual(payload, {
+    transactions: [],
+  });
+});
+
+test('syncs deleted remote transactions without requiring a category mapping', () => {
+  const payload = buildTransactionsPushPayload(
+    [
+      {
+        id: 'tx-remote-deleted',
+        remoteId: REMOTE_TX_ID,
+        type: 'expense',
+        amount: 1800,
+        accountId: 'acc-cash',
+        categoryId: 'cat-food',
+        note: 'Deleted after sync',
+        transactionAt: '2026-05-13T12:30:00.000Z',
+        deletedAt: '2026-05-13T13:00:00.000Z',
+      },
+    ],
+    {
+      categoryIds: new Map(),
+    }
+  );
+
+  assert.deepEqual(payload, {
+    transactions: [
+      {
+        id: REMOTE_TX_ID,
+        client_id: 'tx-remote-deleted',
+        account_id: 'acc-cash',
+        category_id: undefined,
+        kind: 'expense',
+        amount: 1800,
+        note: 'Deleted after sync',
+        occurred_at: '2026-05-13T12:30:00.000Z',
+        is_deleted: true,
+        deleted_at: '2026-05-13T13:00:00.000Z',
+      },
+    ],
+  });
+});
+
 test('maps pulled remote ledger data into a local snapshot keyed by client ids', () => {
   const REMOTE_ACCOUNT_ID = '10000000-0000-4000-8000-000000000012';
   const payload = {
