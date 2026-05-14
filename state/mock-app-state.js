@@ -1,12 +1,7 @@
-import { mockCategories } from '../data/mock/mock-categories.js';
 import {
   mockCurrentMonth,
-  mockMonthlyStatistics,
-  mockStatisticsByMonth,
   mockSyncSummary,
 } from '../data/mock/mock-statistics.js';
-import { mockTransactions } from '../data/mock/mock-transactions.js';
-import { mockUser } from '../data/mock/mock-user.js';
 import { mergePersistedCustomDefinitions } from './mock-app-persistence-support.js';
 import { applyMockAppSnapshot } from './mock-app-snapshot.js';
 
@@ -54,7 +49,8 @@ const DEFAULT_ENTRY_TYPE = 'expense';
  * @typedef {{ type: 'reconcileCustomDefinitions', categories: LedgerCategory[] }} ReconcileCustomDefinitionsAction
  * @typedef {{ type: 'hydrateCustomDefinitions', definitions: { categories?: LedgerCategory[] | undefined } }} HydrateCustomDefinitionsAction
  * @typedef {{ type: 'hydrateSnapshot', snapshot: import('./mock-app-snapshot.js').MockAppSnapshot }} HydrateSnapshotAction
- * @typedef {OpenQuickAddAction | CloseQuickAddAction | SetSelectedEntryTypeAction | SetCurrentMonthAction | AddTransactionAction | UpdateTransactionAction | DeleteTransactionAction | UpdateTransactionSyncStatusAction | AddCategoryAction | ToggleCategoryActiveAction | UpdateCategoryAction | DeleteCategoryAction | ReconcileCustomDefinitionsAction | HydrateCustomDefinitionsAction | HydrateSnapshotAction} MockAppAction
+ * @typedef {{ type: 'resetState' }} ResetStateAction
+ * @typedef {OpenQuickAddAction | CloseQuickAddAction | SetSelectedEntryTypeAction | SetCurrentMonthAction | AddTransactionAction | UpdateTransactionAction | DeleteTransactionAction | UpdateTransactionSyncStatusAction | AddCategoryAction | ToggleCategoryActiveAction | UpdateCategoryAction | DeleteCategoryAction | ReconcileCustomDefinitionsAction | HydrateCustomDefinitionsAction | HydrateSnapshotAction | ResetStateAction} MockAppAction
  */
 
 /**
@@ -82,22 +78,15 @@ const DEFAULT_ENTRY_TYPE = 'expense';
  * @property {string[]} availableMonths
  */
 
-/** @returns {LedgerCategory[]} */
-function cloneCategories() {
-  return mockCategories.map((category) => ({ ...category }));
-}
-
-/** @returns {LocalTransactionRecord[]} */
-function cloneTransactions() {
-  return mockTransactions.map((transaction) => ({ ...transaction }));
-}
-
-/** @returns {Record<string, MonthlyStatistics>} */
-function cloneStatisticsByMonth() {
-  return Object.fromEntries(
-    Object.entries(mockStatisticsByMonth).map(([month, stats]) => [month, structuredClone(stats)])
-  );
-}
+const EMPTY_USER = {
+  id: '',
+  name: '未登录',
+  email: '',
+  ledgerName: '',
+  currency: 'CNY',
+  timezone: 'Asia/Shanghai',
+  defaultAccountId: '',
+};
 
 /**
  * @param {string} transactionAt
@@ -358,18 +347,16 @@ function mergeMonthStatistics(state, month) {
 
 /** @returns {MockAppState} */
 export function createInitialMockAppState() {
-  const seedTransactions = cloneTransactions();
-
   return {
     currentMonth: mockCurrentMonth,
     selectedEntryType: DEFAULT_ENTRY_TYPE,
     quickAddOpen: false,
-    user: { ...mockUser },
-    implicitLedgerAccountId: mockUser.defaultAccountId,
-    categories: cloneCategories(),
-    transactions: seedTransactions.map((transaction) => ({ ...transaction })),
-    seedTransactions,
-    statisticsByMonth: cloneStatisticsByMonth(),
+    user: { ...EMPTY_USER },
+    implicitLedgerAccountId: '',
+    categories: [],
+    transactions: [],
+    seedTransactions: [],
+    statisticsByMonth: {},
     syncUpdatedAt: mockSyncSummary.updatedAt,
   };
 }
@@ -498,6 +485,8 @@ export function mockAppReducer(state, action) {
       return applyMockAppSnapshot(state, action.snapshot);
     case 'hydrateCustomDefinitions':
       return mergePersistedCustomDefinitions(state, action.definitions);
+    case 'resetState':
+      return createInitialMockAppState();
     default:
       return state;
   }
@@ -604,5 +593,5 @@ export function selectTransactionById(state, transactionId) {
 
 /** @returns {MonthlyStatistics[]} */
 export function selectSeededMonthlyStatistics() {
-  return mockMonthlyStatistics.map((item) => structuredClone(item));
+  return [];
 }

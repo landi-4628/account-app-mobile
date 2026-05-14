@@ -1,14 +1,16 @@
 import React from 'react';
 import { useRouter } from 'expo-router';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { accountingCopy } from '@/constants/accounting-copy';
 import {
   AccountingScreen,
+  FeedbackDialog,
   InteractiveCard,
   SectionHeader,
   SyncSummaryRow,
 } from '@/components/accounting';
+import { buildAuthRequiredDialogState } from '@/components/accounting/auth-required-dialog-support';
 import {
   buildProfileOverviewLinks,
   getProfileSyncModeCopy,
@@ -59,9 +61,10 @@ function ProfileEntryCard({ title, subtitle, rows, onPress }) {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, syncSummary, autoSyncEnabled, canSyncRemotely, syncInFlight, actions } = useMockApp();
+  const { user, syncSummary, autoSyncEnabled, canSyncRemotely, syncInFlight, actions, isAuthenticated } = useMockApp();
   const { colors, spacing, radius, typography, shadow } = useAccountingTheme();
   const styles = createStyles(colors, spacing, radius, typography, shadow);
+  const [dialogState, setDialogState] = React.useState(null);
 
   const profileEntryRows = [
     { label: accountingCopy.profile.ledger, value: user.ledgerName },
@@ -90,8 +93,21 @@ export default function ProfileScreen() {
       return;
     }
 
+    if (!isAuthenticated) {
+      setDialogState(
+        buildAuthRequiredDialogState(() => {
+          router.push('/auth/login');
+        })
+      );
+      return;
+    }
+
     if (!canSyncRemotely && hasPendingChanges) {
-      Alert.alert('\u6682\u65f6\u65e0\u6cd5\u540c\u6b65', syncUnavailableMessage);
+      setDialogState({
+        title: '\u6682\u65f6\u65e0\u6cd5\u540c\u6b65',
+        description: syncUnavailableMessage,
+        actions: [{ label: '知道了', tone: 'primary' }],
+      });
       return;
     }
 
@@ -131,6 +147,13 @@ export default function ProfileScreen() {
           ))}
         </View>
       </View>
+      <FeedbackDialog
+        visible={dialogState != null}
+        title={dialogState?.title ?? ''}
+        description={dialogState?.description}
+        actions={dialogState?.actions}
+        onClose={() => setDialogState(null)}
+      />
     </AccountingScreen>
   );
 }

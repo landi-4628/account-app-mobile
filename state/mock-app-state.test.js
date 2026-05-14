@@ -12,210 +12,147 @@ import {
   selectPersistedCustomDefinitions,
 } from './mock-app-persistence-support.js';
 
-test('builds current month summary and sync state from the mock foundations', () => {
+function buildTransaction(overrides = {}) {
+  return {
+    id: 'tx-test',
+    type: 'expense',
+    amount: 5000,
+    categoryId: 'cat-food',
+    accountId: 'acc-cash',
+    note: 'Test',
+    transactionAt: '2026-05-12T09:30:00+08:00',
+    syncStatus: 'pending',
+    ...overrides,
+  };
+}
+
+test('builds an empty unauthenticated foundation state', () => {
   const state = createInitialMockAppState();
   const monthData = selectCurrentMonthData(state);
   const syncSummary = selectSyncSummary(state);
 
-  assert.equal(state.currentMonth, '2026-05');
-  assert.equal(state.implicitLedgerAccountId, state.user.defaultAccountId);
-  assert.equal(monthData.summary.income, 1460000);
-  assert.equal(monthData.summary.expense, 19480);
-  assert.equal(monthData.summary.balance, 1440520);
-  assert.equal(monthData.summary.pendingCount, 1);
-  assert.equal(monthData.summary.failedCount, 1);
-  assert.equal(monthData.transactions.length, 6);
+  assert.equal(state.user.name, '未登录');
+  assert.equal(state.user.email, '');
+  assert.equal(state.implicitLedgerAccountId, '');
+  assert.deepEqual(state.categories, []);
+  assert.deepEqual(state.transactions, []);
+  assert.equal(monthData.summary.income, 0);
+  assert.equal(monthData.summary.expense, 0);
+  assert.equal(monthData.summary.balance, 0);
+  assert.equal(monthData.transactions.length, 0);
   assert.deepEqual(syncSummary, {
-    status: 'failed',
-    pendingCount: 1,
-    failedCount: 1,
+    status: 'synced',
+    pendingCount: 0,
+    failedCount: 0,
     updatedAt: '2026-05-11T12:40:00+08:00',
   });
 });
 
-test('switches month using seeded statistics even when that month has no transactions in memory', () => {
-  const initialState = createInitialMockAppState();
-  const state = mockAppReducer(initialState, {
-    type: 'setCurrentMonth',
-    month: '2026-04',
-  });
-  const monthData = selectCurrentMonthData(state);
-
-  assert.equal(state.currentMonth, '2026-04');
-  assert.equal(monthData.summary.income, 1180000);
-  assert.equal(monthData.summary.expense, 286400);
-  assert.equal(monthData.summary.balance, 893600);
-  assert.equal(monthData.transactions.length, 0);
-});
-
-test('merges April seeded baseline with the first live transaction instead of replacing it', () => {
-  const initialState = createInitialMockAppState();
-  const state = mockAppReducer(initialState, {
+test('adds a transaction and derives month and sync summaries from live data only', () => {
+  const state = mockAppReducer(createInitialMockAppState(), {
     type: 'addTransaction',
-    transaction: {
-      id: 'tx-april-test-book',
-      type: 'expense',
-      amount: 5000,
-      categoryId: 'cat-food',
-      accountId: 'acc-cash',
-      note: 'April test',
-      transactionAt: '2026-04-18T09:30:00+08:00',
-      syncStatus: 'pending',
-    },
-  });
-  const monthData = selectCurrentMonthData(state);
-
-  assert.equal(state.currentMonth, '2026-04');
-  assert.equal(monthData.summary.income, 1180000);
-  assert.equal(monthData.summary.expense, 291400);
-  assert.equal(monthData.summary.balance, 888600);
-  assert.equal(monthData.summary.pendingCount, 1);
-  assert.equal(monthData.summary.failedCount, 0);
-  assert.equal(monthData.statistics.transactionCount, 19);
-  assert.deepEqual(monthData.statistics.expenseBreakdown, [
-    { categoryId: 'cat-groceries', amount: 124200, percent: 43 },
-    { categoryId: 'cat-food', amount: 101200, percent: 35 },
-    { categoryId: 'cat-commute', amount: 66000, percent: 23 },
-  ]);
-  assert.equal(monthData.transactions.length, 1);
-  assert.equal(monthData.transactions[0].id, 'tx-april-test-book');
-});
-
-test('adds a transaction and keeps month and sync summaries aligned', () => {
-  const initialState = createInitialMockAppState();
-  const state = mockAppReducer(initialState, {
-    type: 'addTransaction',
-    transaction: {
-      id: 'tx-test-book',
-      type: 'expense',
-      amount: 5000,
-      categoryId: 'cat-food',
-      accountId: 'acc-cash',
-      note: 'Test',
-      transactionAt: '2026-05-12T09:30:00+08:00',
-      syncStatus: 'pending',
-    },
+    transaction: buildTransaction(),
   });
   const monthData = selectCurrentMonthData(state);
   const syncSummary = selectSyncSummary(state);
 
-  assert.equal(monthData.transactions[0].id, 'tx-test-book');
-  assert.equal(monthData.summary.expense, 24480);
-  assert.equal(monthData.summary.balance, 1435520);
-  assert.equal(monthData.summary.pendingCount, 2);
-  assert.equal(syncSummary.pendingCount, 2);
-  assert.equal(syncSummary.failedCount, 1);
+  assert.equal(monthData.transactions[0].id, 'tx-test');
+  assert.equal(monthData.summary.expense, 5000);
+  assert.equal(monthData.summary.balance, -5000);
+  assert.equal(monthData.summary.pendingCount, 1);
+  assert.equal(syncSummary.status, 'pending');
+  assert.equal(syncSummary.pendingCount, 1);
 });
 
-test('updates a transaction in place and keeps month and sync summaries aligned', () => {
-  const initialState = createInitialMockAppState();
+test('updates a transaction in place and keeps derived summaries aligned', () => {
+  const initialState = mockAppReducer(createInitialMockAppState(), {
+    type: 'addTransaction',
+    transaction: buildTransaction({ id: 'tx-edit', syncStatus: 'synced' }),
+  });
   const state = mockAppReducer(initialState, {
     type: 'updateTransaction',
-    transactionId: 'tx-coffee',
+    transactionId: 'tx-edit',
     updates: {
       amount: 3600,
-      categoryId: 'cat-food',
+      categoryId: 'cat-snacks',
       note: 'Team coffee',
       syncStatus: 'pending',
     },
   });
   const monthData = selectCurrentMonthData(state);
   const syncSummary = selectSyncSummary(state);
-  const transaction = state.transactions.find((item) => item.id === 'tx-coffee');
 
-  assert.equal(transaction?.amount, 3600);
-  assert.equal(transaction?.categoryId, 'cat-food');
-  assert.equal(transaction?.note, 'Team coffee');
-  assert.equal(transaction?.syncStatus, 'pending');
-  assert.equal(monthData.summary.expense, 20280);
-  assert.equal(monthData.summary.balance, 1439720);
-  assert.equal(monthData.summary.pendingCount, 2);
-  assert.equal(monthData.summary.failedCount, 0);
+  assert.equal(monthData.summary.expense, 3600);
+  assert.equal(monthData.summary.balance, -3600);
+  assert.equal(monthData.summary.pendingCount, 1);
   assert.equal(syncSummary.status, 'pending');
-  assert.equal(syncSummary.pendingCount, 2);
-  assert.equal(syncSummary.failedCount, 0);
+  assert.equal(syncSummary.pendingCount, 1);
+  assert.equal(state.transactions[0].categoryId, 'cat-snacks');
 });
 
-test('moves an edited transaction across month boundaries and keeps summaries aligned', () => {
-  const initialState = createInitialMockAppState();
+test('moves an edited transaction across month boundaries', () => {
+  const initialState = mockAppReducer(createInitialMockAppState(), {
+    type: 'addTransaction',
+    transaction: buildTransaction({ id: 'tx-shift', syncStatus: 'synced' }),
+  });
   const state = mockAppReducer(initialState, {
     type: 'updateTransaction',
-    transactionId: 'tx-coffee',
+    transactionId: 'tx-shift',
     updates: {
-      amount: 5000,
-      categoryId: 'cat-food',
-      accountId: 'acc-cash',
-      note: 'April coffee',
       transactionAt: '2026-04-20T10:05:00+08:00',
       syncStatus: 'pending',
     },
   });
   const monthData = selectCurrentMonthData(state);
-  const syncSummary = selectSyncSummary(state);
-  const transaction = state.transactions.find((item) => item.id === 'tx-coffee');
 
   assert.equal(state.currentMonth, '2026-04');
-  assert.equal(transaction?.transactionAt, '2026-04-20T10:05:00+08:00');
-  assert.equal(transaction?.accountId, 'acc-cash');
-  assert.equal(monthData.transactions[0].id, 'tx-coffee');
-  assert.equal(monthData.summary.income, 1180000);
-  assert.equal(monthData.summary.expense, 291400);
-  assert.equal(monthData.summary.balance, 888600);
+  assert.equal(monthData.transactions[0].id, 'tx-shift');
+  assert.equal(monthData.summary.expense, 5000);
   assert.equal(monthData.summary.pendingCount, 1);
-  assert.equal(monthData.summary.failedCount, 0);
-  assert.equal(monthData.statistics.transactionCount, 19);
-  assert.deepEqual(monthData.statistics.expenseBreakdown, [
-    { categoryId: 'cat-groceries', amount: 124200, percent: 43 },
-    { categoryId: 'cat-food', amount: 101200, percent: 35 },
-    { categoryId: 'cat-commute', amount: 66000, percent: 23 },
-  ]);
-  assert.equal(syncSummary.status, 'pending');
-  assert.equal(syncSummary.pendingCount, 2);
-  assert.equal(syncSummary.failedCount, 0);
 });
 
-test('deletes a transaction and updates derived balances and counts', () => {
-  const initialState = createInitialMockAppState();
+test('deletes a transaction and removes it from derived month lists', () => {
+  const initialState = mockAppReducer(createInitialMockAppState(), {
+    type: 'addTransaction',
+    transaction: buildTransaction({ id: 'tx-delete', syncStatus: 'synced' }),
+  });
   const state = mockAppReducer(initialState, {
     type: 'deleteTransaction',
-    transactionId: 'tx-coffee',
+    transactionId: 'tx-delete',
   });
   const monthData = selectCurrentMonthData(state);
   const syncSummary = selectSyncSummary(state);
-  const deletedTransaction = state.transactions.find((item) => item.id === 'tx-coffee');
+  const deletedTransaction = state.transactions.find((item) => item.id === 'tx-delete');
 
-  assert.equal(monthData.summary.expense, 16680);
-  assert.equal(monthData.summary.balance, 1443320);
-  assert.equal(monthData.summary.failedCount, 0);
-  assert.equal(monthData.summary.pendingCount, 1);
-  assert.equal(monthData.transactions.some((item) => item.id === 'tx-coffee'), false);
+  assert.equal(monthData.transactions.length, 0);
+  assert.equal(monthData.summary.expense, 0);
+  assert.equal(monthData.summary.pendingCount, 0);
   assert.equal(deletedTransaction?.syncStatus, 'pending');
   assert.equal(typeof deletedTransaction?.deletedAt, 'string');
-  assert.equal(syncSummary.status, 'pending');
-  assert.equal(syncSummary.pendingCount, 1);
-  assert.equal(syncSummary.failedCount, 0);
+  assert.equal(syncSummary.status, 'synced');
 });
 
 test('updates transaction sync status and recalculates sync-derived selectors', () => {
-  const initialState = createInitialMockAppState();
+  const initialState = mockAppReducer(createInitialMockAppState(), {
+    type: 'addTransaction',
+    transaction: buildTransaction({ id: 'tx-sync' }),
+  });
   const state = mockAppReducer(initialState, {
     type: 'updateTransactionSyncStatus',
-    transactionId: 'tx-coffee',
+    transactionId: 'tx-sync',
     syncStatus: 'synced',
   });
   const monthData = selectCurrentMonthData(state);
   const syncSummary = selectSyncSummary(state);
 
   assert.equal(monthData.summary.failedCount, 0);
-  assert.equal(monthData.summary.pendingCount, 1);
-  assert.equal(monthData.summary.syncStatus, 'pending');
-  assert.equal(syncSummary.status, 'pending');
-  assert.equal(syncSummary.failedCount, 0);
+  assert.equal(monthData.summary.pendingCount, 0);
+  assert.equal(monthData.summary.syncStatus, 'synced');
+  assert.equal(syncSummary.status, 'synced');
 });
 
-test('adds a custom category and keeps it active in the selected type list', () => {
-  const initialState = createInitialMockAppState();
-  const state = mockAppReducer(initialState, {
+test('adds a custom category and keeps it active in state', () => {
+  const state = mockAppReducer(createInitialMockAppState(), {
     type: 'addCategory',
     category: {
       id: 'cat-custom-snacks',
@@ -227,12 +164,20 @@ test('adds a custom category and keeps it active in the selected type list', () 
   });
 
   assert.equal(state.categories.at(-1)?.id, 'cat-custom-snacks');
-  assert.equal(state.categories.at(-1)?.name, 'Snacks');
   assert.equal(state.categories.at(-1)?.isCustom, true);
 });
 
 test('toggles a category active state in place', () => {
-  const initialState = createInitialMockAppState();
+  const initialState = mockAppReducer(createInitialMockAppState(), {
+    type: 'addCategory',
+    category: {
+      id: 'cat-food',
+      name: 'Food',
+      type: 'expense',
+      isActive: true,
+      isCustom: true,
+    },
+  });
   const state = mockAppReducer(initialState, {
     type: 'toggleCategoryActive',
     categoryId: 'cat-food',
@@ -268,17 +213,9 @@ test('selects only custom categories for persistence', () => {
   });
 });
 
-test('merges persisted custom definitions without duplicating seeded ids', () => {
-  const initialState = createInitialMockAppState();
-  const merged = mergePersistedCustomDefinitions(initialState, {
+test('merges persisted custom definitions into an empty baseline', () => {
+  const merged = mergePersistedCustomDefinitions(createInitialMockAppState(), {
     categories: [
-      {
-        id: 'cat-food',
-        name: 'Duplicate Seed',
-        type: 'expense',
-        isActive: true,
-        isCustom: true,
-      },
       {
         id: 'cat-custom-snacks',
         name: 'Snacks',
@@ -289,14 +226,13 @@ test('merges persisted custom definitions without duplicating seeded ids', () =>
     ],
   });
 
-  assert.equal(merged.categories.filter((item) => item.id === 'cat-food').length, 1);
-  assert.equal(merged.implicitLedgerAccountId, initialState.implicitLedgerAccountId);
-  assert.equal(merged.categories.at(-1)?.id, 'cat-custom-snacks');
+  assert.equal(merged.categories.length, 1);
+  assert.equal(merged.categories[0].id, 'cat-custom-snacks');
+  assert.equal(merged.implicitLedgerAccountId, '');
 });
 
-test('hydrates a persisted snapshot into state while keeping seeded foundations', () => {
-  const initialState = createInitialMockAppState();
-  const state = mockAppReducer(initialState, {
+test('hydrates a persisted snapshot onto the empty baseline', () => {
+  const state = mockAppReducer(createInitialMockAppState(), {
     type: 'hydrateSnapshot',
     snapshot: {
       currentMonth: '2026-04',
@@ -316,7 +252,6 @@ test('hydrates a persisted snapshot into state while keeping seeded foundations'
         },
       ],
       categories: [
-        ...initialState.categories,
         {
           id: 'cat-custom-bonus',
           name: 'Bonus',
@@ -332,21 +267,25 @@ test('hydrates a persisted snapshot into state while keeping seeded foundations'
   assert.equal(state.currentMonth, '2026-04');
   assert.equal(state.selectedEntryType, 'income');
   assert.equal(state.implicitLedgerAccountId, 'acc-bank');
-  assert.deepEqual(state.transactions, [
-    {
-      id: 'tx-restored',
-      type: 'income',
-      amount: 8888,
-      categoryId: 'cat-freelance',
-      accountId: 'acc-bank',
-      note: 'Restored',
-      transactionAt: '2026-04-22T09:00:00+08:00',
-      syncStatus: 'pending',
-      deletedAt: '2026-05-13T11:05:00+08:00',
-    },
-  ]);
-  assert.equal(state.categories.at(-1)?.id, 'cat-custom-bonus');
+  assert.equal(state.transactions[0].id, 'tx-restored');
+  assert.equal(state.categories[0].id, 'cat-custom-bonus');
   assert.equal(state.syncUpdatedAt, '2026-05-13T11:00:00+08:00');
-  assert.deepEqual(state.seedTransactions, initialState.seedTransactions);
-  assert.deepEqual(state.statisticsByMonth, initialState.statisticsByMonth);
+});
+
+test('resetState restores the empty unauthenticated baseline', () => {
+  const withData = mockAppReducer(createInitialMockAppState(), {
+    type: 'addCategory',
+    category: {
+      id: 'cat-custom-reset',
+      name: 'Reset',
+      type: 'expense',
+      isActive: true,
+      isCustom: true,
+    },
+  });
+  const reset = mockAppReducer(withData, { type: 'resetState' });
+
+  assert.equal(reset.user.name, '未登录');
+  assert.deepEqual(reset.categories, []);
+  assert.deepEqual(reset.transactions, []);
 });

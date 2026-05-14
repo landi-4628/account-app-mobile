@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 
-import { AccountingScreen, EmptyState, TransactionForm } from '@/components/accounting';
+import { AccountingScreen, EmptyState, FeedbackDialog, TransactionForm } from '@/components/accounting';
+import { buildAuthRequiredDialogState } from '@/components/accounting/auth-required-dialog-support';
 import { accountingCopy } from '@/constants/accounting-copy';
 import { resolveImplicitAccountId } from '@/lib/resolve-implicit-account-id.js';
 import { useMockApp } from '@/providers/mock-app-provider';
@@ -21,6 +22,7 @@ export default function EditTransactionScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const { actions, categories, implicitLedgerAccountId, selectors, user } = useMockApp();
+  const [dialogState, setDialogState] = React.useState(null);
   const transactionId = Array.isArray(id) ? id[0] : id;
   const transaction = transactionId ? selectors.getTransactionById(transactionId) : null;
   const categoryOptions = useMemo(() => buildCategoryOptions(categories), [categories]);
@@ -35,18 +37,31 @@ export default function EditTransactionScreen() {
         return;
       }
 
-      if (typeof actions.updateTransaction === 'function') {
-        actions.updateTransaction(transactionId, values);
-      } else {
-        actions.deleteTransaction(transactionId);
-        actions.addTransaction({
-          ...values,
-          id: transactionId,
-          syncStatus: values.syncStatus ?? transaction.syncStatus,
-        });
-      }
+      try {
+        if (typeof actions.updateTransaction === 'function') {
+          actions.updateTransaction(transactionId, values);
+        } else {
+          actions.deleteTransaction(transactionId);
+          actions.addTransaction({
+            ...values,
+            id: transactionId,
+            syncStatus: values.syncStatus ?? transaction.syncStatus,
+          });
+        }
 
-      router.back();
+        router.back();
+      } catch (error) {
+        setDialogState(
+          error instanceof Error && error.message === '请先登录'
+            ? buildAuthRequiredDialogState(() => {
+                router.replace('/auth/login');
+              })
+            : {
+                title: error instanceof Error ? error.message : '保存失败',
+                actions: [{ label: '知道了', tone: 'primary' }],
+              }
+        );
+      }
     },
     [actions, router, transaction, transactionId]
   );
@@ -56,8 +71,21 @@ export default function EditTransactionScreen() {
       return;
     }
 
-    actions.deleteTransaction(transactionId);
-    router.replace('/details');
+    try {
+      actions.deleteTransaction(transactionId);
+      router.replace('/details');
+    } catch (error) {
+      setDialogState(
+        error instanceof Error && error.message === '请先登录'
+          ? buildAuthRequiredDialogState(() => {
+              router.replace('/auth/login');
+            })
+          : {
+              title: error instanceof Error ? error.message : '删除失败',
+              actions: [{ label: '知道了', tone: 'primary' }],
+            }
+      );
+    }
   }, [actions, router, transactionId]);
 
   if (!transactionId || !transaction) {
@@ -92,6 +120,13 @@ export default function EditTransactionScreen() {
           deleteLabel={accountingCopy.actions.delete}
           onDelete={handleDelete}
           onSubmit={handleSubmit}
+        />
+        <FeedbackDialog
+          visible={dialogState != null}
+          title={dialogState?.title ?? ''}
+          description={dialogState?.description}
+          actions={dialogState?.actions}
+          onClose={() => setDialogState(null)}
         />
       </AccountingScreen>
     </>

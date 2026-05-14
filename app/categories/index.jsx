@@ -1,15 +1,17 @@
 import React, { useMemo, useState } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   AccountingScreen,
+  EmptyState,
   FeedbackDialog,
   FormField,
   ManagementRow,
   SectionHeader,
   SurfaceCard,
 } from '@/components/accounting';
+import { buildAuthRequiredDialogState } from '@/components/accounting/auth-required-dialog-support';
 import {
   buildCapabilityNotice,
   buildCategoryManagementViewModel,
@@ -163,7 +165,8 @@ function createButtonStyles({ colors, spacing, radius, typography }) {
 }
 
 export default function CategoriesScreen() {
-  const { categories, actions } = useMockApp();
+  const router = useRouter();
+  const { categories, actions, isAuthenticated } = useMockApp();
   const theme = useAccountingTheme();
   const styles = createStyles(theme);
   const availability = useMemo(() => getActionAvailability(actions), [actions]);
@@ -219,13 +222,25 @@ export default function CategoriesScreen() {
               {
                 text: copy.deleteAction,
                 style: 'destructive',
-                onPress: () => void actions.deleteCategory?.(row.id),
+                onPress: () =>
+                  void actions.deleteCategory?.(row.id).catch((error) => {
+                    setDialogState(
+                      error instanceof Error && error.message === '请先登录'
+                        ? buildAuthRequiredDialogState(() => {
+                            router.push('/auth/login');
+                          })
+                        : {
+                            title: error instanceof Error ? error.message : copy.submitError,
+                            actions: [{ label: copy.acknowledge, tone: 'primary' }],
+                          }
+                    );
+                  }),
               },
             ]),
         },
       ]);
     },
-    [actions]
+    [actions, router]
   );
 
   const handleSaveCategoryEdit = React.useCallback(() => {
@@ -236,9 +251,21 @@ export default function CategoriesScreen() {
     void actions.updateCategory?.(editCategory.id, {
       name: editName.trim(),
       type: /** @type {import('@/types/accounting').EntryType} */ (editEntryType),
+    }).then(() => {
+      setEditCategory(null);
+    }).catch((error) => {
+      setDialogState(
+        error instanceof Error && error.message === '请先登录'
+          ? buildAuthRequiredDialogState(() => {
+              router.push('/auth/login');
+            })
+          : {
+              title: error instanceof Error ? error.message : copy.submitError,
+              actions: [{ label: copy.acknowledge, tone: 'primary' }],
+            }
+      );
     });
-    setEditCategory(null);
-  }, [actions, editCategory, editEntryType, editName]);
+  }, [actions, editCategory, editEntryType, editName, router]);
 
   const handleCreate = React.useCallback(async () => {
     if (!name.trim() || !availability.canCreateCategories) {
@@ -252,12 +279,18 @@ export default function CategoriesScreen() {
       });
       setName('');
     } catch (error) {
-      setDialogState({
-        title: error instanceof Error ? error.message : copy.submitError,
-        actions: [{ label: copy.acknowledge, tone: 'primary' }],
-      });
+      setDialogState(
+        error instanceof Error && error.message === '请先登录'
+          ? buildAuthRequiredDialogState(() => {
+              router.push('/auth/login');
+            })
+          : {
+              title: error instanceof Error ? error.message : copy.submitError,
+              actions: [{ label: copy.acknowledge, tone: 'primary' }],
+            }
+      );
     }
-  }, [actions, availability.canCreateCategories, entryType, name]);
+  }, [actions, availability.canCreateCategories, entryType, name, router]);
 
   const handleToggleActive = React.useCallback(
     async (categoryId, isActive) => {
@@ -265,9 +298,22 @@ export default function CategoriesScreen() {
         return;
       }
 
-      await actions.toggleCategoryActive?.(categoryId, !isActive);
+      try {
+        await actions.toggleCategoryActive?.(categoryId, !isActive);
+      } catch (error) {
+        setDialogState(
+          error instanceof Error && error.message === '请先登录'
+            ? buildAuthRequiredDialogState(() => {
+                router.push('/auth/login');
+              })
+            : {
+                title: error instanceof Error ? error.message : copy.submitError,
+                actions: [{ label: copy.acknowledge, tone: 'primary' }],
+              }
+        );
+      }
     },
-    [actions, viewModel.canManageExisting]
+    [actions, router, viewModel.canManageExisting]
   );
 
   return (
@@ -275,48 +321,59 @@ export default function CategoriesScreen() {
       <Stack.Screen options={{ title: copy.title }} />
       <AccountingScreen>
         <SectionHeader title={copy.title} subtitle={copy.subtitle} />
-        <Text style={styles.hint}>{copy.editHint}</Text>
-        <SurfaceCard style={styles.card}>
-          <Text style={styles.sectionTitle}>{copy.newCategory}</Text>
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>{copy.type}</Text>
-            <EntryTypePicker
-              value={entryType}
-              onChange={setEntryType}
-              disabled={!availability.canCreateCategories}
-            />
-          </View>
-          <FormField
-            label={copy.categoryName}
-            value={name}
-            onChangeText={setName}
-            placeholder={entryType === 'expense' ? copy.expensePlaceholder : copy.incomePlaceholder}
-            autoCapitalize="words"
-          />
-          <AddCategoryButton
-            disabled={!availability.canCreateCategories || !name.trim()}
-            onPress={() => void handleCreate()}
-          />
-        </SurfaceCard>
-        <View style={styles.listSection}>
-          <Text style={styles.sectionTitle}>
-            {entryType === 'expense' ? copy.expenseCategories : copy.incomeCategories}
-          </Text>
-          <View style={styles.list}>
-            {viewModel.rows.map((row) => (
-              <ManagementRow
-                key={row.id}
-                title={row.item.name}
-                subtitle={row.item.type === 'expense' ? copy.expense : copy.income}
-                meta={row.isActive ? copy.tapToDeactivate : copy.tapToActivate}
-                badge={row.isActive ? null : { label: copy.inactive, tone: 'warning' }}
-                disabled={!viewModel.canManageExisting}
-                onPress={() => void handleToggleActive(row.id, row.isActive)}
-                onLongPress={() => openCategoryMenu(row)}
+        {isAuthenticated ? (
+          <>
+            <Text style={styles.hint}>{copy.editHint}</Text>
+            <SurfaceCard style={styles.card}>
+              <Text style={styles.sectionTitle}>{copy.newCategory}</Text>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>{copy.type}</Text>
+                <EntryTypePicker
+                  value={entryType}
+                  onChange={setEntryType}
+                  disabled={!availability.canCreateCategories}
+                />
+              </View>
+              <FormField
+                label={copy.categoryName}
+                value={name}
+                onChangeText={setName}
+                placeholder={entryType === 'expense' ? copy.expensePlaceholder : copy.incomePlaceholder}
+                autoCapitalize="words"
               />
-            ))}
-          </View>
-        </View>
+              <AddCategoryButton
+                disabled={!availability.canCreateCategories || !name.trim()}
+                onPress={() => void handleCreate()}
+              />
+            </SurfaceCard>
+            <View style={styles.listSection}>
+              <Text style={styles.sectionTitle}>
+                {entryType === 'expense' ? copy.expenseCategories : copy.incomeCategories}
+              </Text>
+              <View style={styles.list}>
+                {viewModel.rows.map((row) => (
+                  <ManagementRow
+                    key={row.id}
+                    title={row.item.name}
+                    subtitle={row.item.type === 'expense' ? copy.expense : copy.income}
+                    meta={row.isActive ? copy.tapToDeactivate : copy.tapToActivate}
+                    badge={row.isActive ? null : { label: copy.inactive, tone: 'warning' }}
+                    disabled={!viewModel.canManageExisting}
+                    onPress={() => void handleToggleActive(row.id, row.isActive)}
+                    onLongPress={() => openCategoryMenu(row)}
+                  />
+                ))}
+              </View>
+            </View>
+          </>
+        ) : (
+          <EmptyState
+            title="请先登录"
+            description="登录后才能查看和管理分类。"
+            actionLabel="去登录"
+            onActionPress={() => router.push('/auth/login')}
+          />
+        )}
         <Modal
           visible={editCategory != null}
           transparent

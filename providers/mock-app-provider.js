@@ -142,6 +142,7 @@ const MOCK_APP_STATE_SNAPSHOT_STORAGE_KEY = 'mock-app-state-snapshot';
 const MOCK_APP_AUTH_SESSION_STORAGE_KEY = 'mock-app-auth-session';
 const REMOTE_API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://192.168.5.119:3000';
+const AUTH_REQUIRED_MESSAGE = '请先登录';
 
 /**
  * @param {NewTransactionInput & { id?: string | undefined, syncStatus?: import('../types/accounting').SyncStatus | undefined }} input
@@ -181,10 +182,8 @@ export function MockAppProvider({ children }) {
   const lastAuthenticatedUserIdRef = useRef(/** @type {string | null} */ (null));
   const skipNextRemoteLedgerPullRef = useRef(false);
   const [ledgerBootstrapLoading, setLedgerBootstrapLoading] = useState(false);
-  const [myLedgers, setMyLedgers] = useState(() => buildLocalLedgerCollection(state.user).ledgers);
-  const [currentLedgerId, setCurrentLedgerId] = useState(
-    () => buildLocalLedgerCollection(state.user).currentLedgerId
-  );
+  const [myLedgers, setMyLedgers] = useState(/** @type {RemoteLedger[]} */ ([]));
+  const [currentLedgerId, setCurrentLedgerId] = useState(/** @type {string | null} */ (null));
 
   const authApi = useMemo(
     () =>
@@ -240,6 +239,14 @@ export function MockAppProvider({ children }) {
   const canSyncRemotely = Boolean(remoteAccessToken && remoteLedgerId != null);
   const isAuthenticated = Boolean(authSession?.accessToken);
   const ownerUserId = authSession?.userId ?? '';
+
+  const ensureAuthenticated = useCallback(() => {
+    if (!authSession?.accessToken) {
+      throw new Error(AUTH_REQUIRED_MESSAGE);
+    }
+
+    return authSession.accessToken;
+  }, [authSession?.accessToken]);
 
   const persistCustomCategory = useCallback(
     async (/** @type {LedgerCategory} */ category) => {
@@ -399,16 +406,18 @@ export function MockAppProvider({ children }) {
         ]);
 
         if (active) {
-          if (snapshot) {
-            dispatch({
-              type: 'hydrateSnapshot',
-              snapshot,
-            });
-          } else {
-            dispatch({
-              type: 'hydrateCustomDefinitions',
-              definitions,
-            });
+          if (savedSession) {
+            if (snapshot) {
+              dispatch({
+                type: 'hydrateSnapshot',
+                snapshot,
+              });
+            } else {
+              dispatch({
+                type: 'hydrateCustomDefinitions',
+                definitions,
+              });
+            }
           }
           setAutoSyncEnabled(syncPreferences.autoSyncEnabled);
           setAuthSession(savedSession ?? null);
@@ -446,6 +455,9 @@ export function MockAppProvider({ children }) {
         if (active) {
           setAuthSession(null);
           setRemoteUser(null);
+          dispatch({ type: 'resetState' });
+          setMyLedgers([]);
+          setCurrentLedgerId(null);
           void mockAppRuntimeStorageAdapter.clearAuthSession(MOCK_APP_AUTH_SESSION_STORAGE_KEY);
         }
       }
@@ -467,10 +479,9 @@ export function MockAppProvider({ children }) {
 
     async function hydrateLedgers() {
       if (!remoteAccessToken) {
-        const fallback = buildLocalLedgerCollection(state.user);
         if (active) {
-          setMyLedgers(fallback.ledgers);
-          setCurrentLedgerId(fallback.currentLedgerId);
+          setMyLedgers([]);
+          setCurrentLedgerId(null);
         }
         return;
       }
@@ -493,9 +504,8 @@ export function MockAppProvider({ children }) {
           return;
         }
 
-        const fallback = buildLocalLedgerCollection(state.user);
-        setMyLedgers(fallback.ledgers);
-        setCurrentLedgerId(fallback.currentLedgerId);
+        setMyLedgers([]);
+        setCurrentLedgerId(null);
       }
     }
 
@@ -634,6 +644,8 @@ export function MockAppProvider({ children }) {
       return;
     }
 
+    ensureAuthenticated();
+
     const syncPlan = getManualSyncPlan({
       canSyncRemotely,
       syncableCount: syncableTransactions.length,
@@ -652,7 +664,7 @@ export function MockAppProvider({ children }) {
     } finally {
       setSyncInFlight(false);
     }
-  }, [canSyncRemotely, state, syncInFlight, syncRemoteState, syncableTransactions.length]);
+  }, [canSyncRemotely, ensureAuthenticated, state, syncInFlight, syncRemoteState, syncableTransactions.length]);
 
   const logout = useCallback(async () => {
     try {
@@ -664,18 +676,15 @@ export function MockAppProvider({ children }) {
     setAuthSession(null);
     setRemoteUser(null);
     lastAuthenticatedUserIdRef.current = null;
+    dispatch({ type: 'resetState' });
+    setMyLedgers([]);
+    setCurrentLedgerId(null);
     await mockAppRuntimeStorageAdapter.clearAuthSession(MOCK_APP_AUTH_SESSION_STORAGE_KEY);
   }, [authApi]);
 
   const loadMyLedgers = useCallback(async () => {
-    if (!remoteAccessToken) {
-      const fallback = buildLocalLedgerCollection(state.user);
-      setMyLedgers(fallback.ledgers);
-      setCurrentLedgerId(fallback.currentLedgerId);
-      return fallback;
-    }
-
-    const result = await ledgerApi.listMyLedgers(remoteAccessToken);
+    const accessToken = ensureAuthenticated();
+    const result = await ledgerApi.listMyLedgers(accessToken);
     const nextCurrentLedgerId = result.currentLedgerId ?? result.ledgers[0]?.id ?? null;
     setMyLedgers(result.ledgers);
     setCurrentLedgerId(nextCurrentLedgerId);
@@ -686,7 +695,7 @@ export function MockAppProvider({ children }) {
       currentLedgerId: nextCurrentLedgerId,
       ledgers: result.ledgers,
     };
-  }, [ledgerApi, remoteAccessToken, state.user]);
+  }, [ensureAuthenticated, ledgerApi]);
 
   const createLedger = useCallback(
     async ({ name, baseCurrency }) => {
@@ -694,20 +703,8 @@ export function MockAppProvider({ children }) {
       if (!trimmedName) {
         throw new Error('Ledger name is required');
       }
-
-      if (!remoteAccessToken) {
-        const ledger = {
-          id: `local-ledger-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          name: trimmedName,
-          baseCurrency: baseCurrency ?? state.user.currency ?? 'CNY',
-          ownerUserId: state.user.id,
-        };
-        setMyLedgers((current) => [...current, ledger]);
-        setCurrentLedgerId(ledger.id);
-        return ledger;
-      }
-
-      const result = await ledgerApi.createLedger(remoteAccessToken, {
+      const accessToken = ensureAuthenticated();
+      const result = await ledgerApi.createLedger(accessToken, {
         name: trimmedName,
         baseCurrency,
       });
@@ -720,19 +717,14 @@ export function MockAppProvider({ children }) {
       );
       return result.ledger;
     },
-    [ledgerApi, myLedgers, remoteAccessToken, state.user.currency, state.user.id]
+    [ensureAuthenticated, ledgerApi, myLedgers]
   );
 
   const switchLedger = useCallback(
     async (ledgerId) => {
       const targetLedgerId = String(ledgerId);
-
-      if (!remoteAccessToken) {
-        setCurrentLedgerId(targetLedgerId);
-        return { currentLedgerId: targetLedgerId };
-      }
-
-      const result = await ledgerApi.switchLedger(remoteAccessToken, targetLedgerId);
+      const accessToken = ensureAuthenticated();
+      const result = await ledgerApi.switchLedger(accessToken, targetLedgerId);
       const nextCurrentLedgerId = result.currentLedgerId ?? targetLedgerId;
       setCurrentLedgerId(nextCurrentLedgerId);
       setRemoteUser((current) =>
@@ -742,7 +734,7 @@ export function MockAppProvider({ children }) {
         currentLedgerId: nextCurrentLedgerId,
       };
     },
-    [ledgerApi, myLedgers, remoteAccessToken]
+    [ensureAuthenticated, ledgerApi, myLedgers]
   );
 
   useEffect(() => {
@@ -793,6 +785,7 @@ export function MockAppProvider({ children }) {
         setSelectedEntryType: (entryType) => dispatch({ type: 'setSelectedEntryType', entryType }),
         setCurrentMonth: (month) => dispatch({ type: 'setCurrentMonth', month }),
         addTransaction: (input) => {
+          ensureAuthenticated();
           /** @type {MockAppAction} */
           const action = {
             type: 'addTransaction',
@@ -805,6 +798,7 @@ export function MockAppProvider({ children }) {
           }
         },
         updateTransaction: (transactionId, updates) => {
+          ensureAuthenticated();
           /** @type {MockAppAction} */
           const action = {
             type: 'updateTransaction',
@@ -821,6 +815,7 @@ export function MockAppProvider({ children }) {
           }
         },
         deleteTransaction: (transactionId) => {
+          ensureAuthenticated();
           /** @type {MockAppAction} */
           const action = {
             type: 'deleteTransaction',
@@ -843,6 +838,7 @@ export function MockAppProvider({ children }) {
         createLedger,
         switchLedger,
         addCategory: async ({ name, type }) => {
+          ensureAuthenticated();
           const category = createCustomCategoryRecord(name, type);
           /** @type {MockAppAction} */
           const action = {
@@ -888,6 +884,7 @@ export function MockAppProvider({ children }) {
           return category;
         },
         toggleCategoryActive: async (categoryId, isActive) => {
+          ensureAuthenticated();
           /** @type {MockAppAction} */
           const action = {
             type: 'toggleCategoryActive',
@@ -917,6 +914,7 @@ export function MockAppProvider({ children }) {
           }
         },
         updateCategory: async (categoryId, updates) => {
+          ensureAuthenticated();
           /** @type {MockAppAction} */
           const action = {
             type: 'updateCategory',
@@ -945,6 +943,7 @@ export function MockAppProvider({ children }) {
           }
         },
         deleteCategory: async (categoryId) => {
+          ensureAuthenticated();
           /** @type {MockAppAction} */
           const action = { type: 'deleteCategory', categoryId };
           let working = reduceState(state, action);
@@ -977,11 +976,8 @@ export function MockAppProvider({ children }) {
         },
         logout,
         updateProfile: async (draft) => {
-          if (!authSession?.accessToken) {
-            throw new Error('You need to sign in before updating the profile');
-          }
-
-          const user = await authApi.updateProfile(authSession.accessToken, draft);
+          const accessToken = ensureAuthenticated();
+          const user = await authApi.updateProfile(accessToken, draft);
           setRemoteUser({
             ...user,
             ledgerName: draft.ledgerName,
@@ -990,11 +986,8 @@ export function MockAppProvider({ children }) {
           return user;
         },
         changePassword: async (draft) => {
-          if (!authSession?.accessToken) {
-            throw new Error('You need to sign in before changing the password');
-          }
-
-          await authApi.changePassword(authSession.accessToken, draft);
+          const accessToken = ensureAuthenticated();
+          await authApi.changePassword(accessToken, draft);
         },
       },
       selectors: {
@@ -1012,6 +1005,7 @@ export function MockAppProvider({ children }) {
       currentMonthData,
       currentLedger,
       definitionsApi,
+      ensureAuthenticated,
       effectiveUser,
       hydrateRemoteLedgerState,
       loadMyLedgers,
@@ -1144,24 +1138,6 @@ function createCustomCategoryRecord(name, type) {
     type,
     isActive: true,
     isCustom: true,
-  };
-}
-
-/**
- * @param {import('../types/accounting.js').AccountingUser} user
- * @returns {{ currentLedgerId: string, ledgers: RemoteLedger[] }}
- */
-function buildLocalLedgerCollection(user) {
-  const ledger = {
-    id: 'local-ledger-default',
-    name: user.ledgerName,
-    baseCurrency: user.currency ?? 'CNY',
-    ownerUserId: user.id,
-  };
-
-  return {
-    currentLedgerId: ledger.id,
-    ledgers: [ledger],
   };
 }
 

@@ -1,15 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   AccountingScreen,
+  EmptyState,
   FeedbackDialog,
   FormField,
   ManagementRow,
   SectionHeader,
   SurfaceCard,
 } from '@/components/accounting';
+import { buildAuthRequiredDialogState } from '@/components/accounting/auth-required-dialog-support';
 import { useAccountingTheme } from '@/components/accounting/use-accounting-theme';
 import { useMockApp } from '@/providers/mock-app-provider';
 
@@ -75,7 +77,8 @@ function createButtonStyles({ colors, spacing, radius, typography }) {
 }
 
 export default function LedgerManagementScreen() {
-  const { currentLedger, myLedgers, user, actions } = useMockApp();
+  const router = useRouter();
+  const { currentLedger, myLedgers, user, actions, isAuthenticated } = useMockApp();
   const theme = useAccountingTheme();
   const styles = createStyles(theme);
   const [draftName, setDraftName] = useState('');
@@ -92,6 +95,10 @@ export default function LedgerManagementScreen() {
     let active = true;
 
     async function hydrate() {
+      if (!isAuthenticated) {
+        return;
+      }
+
       try {
         await actions.loadMyLedgers();
       } catch (error) {
@@ -109,7 +116,7 @@ export default function LedgerManagementScreen() {
     return () => {
       active = false;
     };
-  }, [actions]);
+  }, [actions, isAuthenticated]);
 
   const handleCreateLedger = React.useCallback(async () => {
     if (!trimmedDraftName) {
@@ -129,14 +136,20 @@ export default function LedgerManagementScreen() {
       });
       setDraftName('');
     } catch (error) {
-      setDialogState({
-        title: error instanceof Error ? error.message : copy.createErrorFallback,
-        actions: [{ label: copy.acknowledge, tone: 'primary' }],
-      });
+      setDialogState(
+        error instanceof Error && error.message === '请先登录'
+          ? buildAuthRequiredDialogState(() => {
+              router.push('/auth/login');
+            })
+          : {
+              title: error instanceof Error ? error.message : copy.createErrorFallback,
+              actions: [{ label: copy.acknowledge, tone: 'primary' }],
+            }
+      );
     } finally {
       setCreating(false);
     }
-  }, [actions, trimmedDraftName, user.currency]);
+  }, [actions, router, trimmedDraftName, user.currency]);
 
   const handleSwitchLedger = React.useCallback(
     async (ledgerId) => {
@@ -145,15 +158,21 @@ export default function LedgerManagementScreen() {
       try {
         await actions.switchLedger(ledgerId);
       } catch (error) {
-        setDialogState({
-          title: error instanceof Error ? error.message : copy.switchErrorFallback,
-          actions: [{ label: copy.acknowledge, tone: 'primary' }],
-        });
+        setDialogState(
+          error instanceof Error && error.message === '请先登录'
+            ? buildAuthRequiredDialogState(() => {
+                router.push('/auth/login');
+              })
+            : {
+                title: error instanceof Error ? error.message : copy.switchErrorFallback,
+                actions: [{ label: copy.acknowledge, tone: 'primary' }],
+              }
+        );
       } finally {
         setBusyLedgerId('');
       }
     },
-    [actions]
+    [actions, router]
   );
 
   return (
@@ -161,54 +180,65 @@ export default function LedgerManagementScreen() {
       <Stack.Screen options={{ title: copy.title }} />
       <AccountingScreen>
         <SectionHeader title={copy.title} subtitle={copy.subtitle} />
-        <SurfaceCard style={styles.card}>
-          <Text style={styles.label}>{copy.currentLedger}</Text>
-          <Text style={styles.currentLedgerName}>{currentLedger?.name ?? user.ledgerName}</Text>
-          <Text style={styles.currentLedgerMeta}>
-            {currentLedger?.baseCurrency ?? user.currency} | {copy.activeLedger}
-          </Text>
-        </SurfaceCard>
-        <SurfaceCard style={styles.card}>
-          <Text style={styles.label}>{copy.createLedger}</Text>
-          <FormField
-            label={copy.ledgerName}
-            value={draftName}
-            onChangeText={setDraftName}
-            placeholder={copy.ledgerNamePlaceholder}
-            error={draftNameError || undefined}
-          />
-          <ActionButton
-            label={copy.createLedger}
-            onPress={() => void handleCreateLedger()}
-            disabled={creating}
-          />
-        </SurfaceCard>
-        <View style={styles.section}>
-          <Text style={styles.label}>{copy.myLedgers}</Text>
-          <View style={styles.rows}>
-            {myLedgers.length === 0 ? (
-              <SurfaceCard>
-                <Text style={styles.emptyText}>{copy.noLedgers}</Text>
-              </SurfaceCard>
-            ) : (
-              myLedgers.map((ledger) => {
-                const isCurrent = ledger.id === currentLedger?.id;
+        {isAuthenticated ? (
+          <>
+            <SurfaceCard style={styles.card}>
+              <Text style={styles.label}>{copy.currentLedger}</Text>
+              <Text style={styles.currentLedgerName}>{currentLedger?.name ?? user.ledgerName}</Text>
+              <Text style={styles.currentLedgerMeta}>
+                {currentLedger?.baseCurrency ?? user.currency} | {copy.activeLedger}
+              </Text>
+            </SurfaceCard>
+            <SurfaceCard style={styles.card}>
+              <Text style={styles.label}>{copy.createLedger}</Text>
+              <FormField
+                label={copy.ledgerName}
+                value={draftName}
+                onChangeText={setDraftName}
+                placeholder={copy.ledgerNamePlaceholder}
+                error={draftNameError || undefined}
+              />
+              <ActionButton
+                label={copy.createLedger}
+                onPress={() => void handleCreateLedger()}
+                disabled={creating}
+              />
+            </SurfaceCard>
+            <View style={styles.section}>
+              <Text style={styles.label}>{copy.myLedgers}</Text>
+              <View style={styles.rows}>
+                {myLedgers.length === 0 ? (
+                  <SurfaceCard>
+                    <Text style={styles.emptyText}>{copy.noLedgers}</Text>
+                  </SurfaceCard>
+                ) : (
+                  myLedgers.map((ledger) => {
+                    const isCurrent = ledger.id === currentLedger?.id;
 
-                return (
-                  <ManagementRow
-                    key={ledger.id}
-                    title={ledger.name}
-                    subtitle={ledger.baseCurrency ?? user.currency}
-                    meta={isCurrent ? copy.activeLedger : copy.switchLedger}
-                    badge={isCurrent ? { label: copy.activeLedger, tone: 'neutral' } : null}
-                    disabled={isCurrent || busyLedgerId === ledger.id}
-                    onPress={() => void handleSwitchLedger(ledger.id)}
-                  />
-                );
-              })
-            )}
-          </View>
-        </View>
+                    return (
+                      <ManagementRow
+                        key={ledger.id}
+                        title={ledger.name}
+                        subtitle={ledger.baseCurrency ?? user.currency}
+                        meta={isCurrent ? copy.activeLedger : copy.switchLedger}
+                        badge={isCurrent ? { label: copy.activeLedger, tone: 'neutral' } : null}
+                        disabled={isCurrent || busyLedgerId === ledger.id}
+                        onPress={() => void handleSwitchLedger(ledger.id)}
+                      />
+                    );
+                  })
+                )}
+              </View>
+            </View>
+          </>
+        ) : (
+          <EmptyState
+            title="请先登录"
+            description="登录后才能查看和切换账本。"
+            actionLabel="去登录"
+            onActionPress={() => router.push('/auth/login')}
+          />
+        )}
         <FeedbackDialog
           visible={dialogState != null}
           title={dialogState?.title ?? ''}
