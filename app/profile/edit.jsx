@@ -23,7 +23,7 @@ const copy = {
   subtitle: '\u66f4\u65b0\u59d3\u540d\u3001\u90ae\u7bb1\u3001\u8d26\u672c\u548c\u65f6\u533a',
   unavailableTitle: '\u5f53\u524d\u6682\u4e0d\u652f\u6301\u4fee\u6539\u4e2a\u4eba\u4fe1\u606f',
   unavailableDescription: '\u4f60\u53ef\u4ee5\u5148\u67e5\u770b\u8fd9\u4e9b\u5b57\u6bb5\uff0c\u63a5\u5165\u66f4\u65b0\u80fd\u529b\u540e\u5373\u53ef\u4fdd\u5b58\u3002',
-  saveFailed: '\u4fdd\u5b58\u4e2a\u4eba\u4fe1\u606f\u5931\u8d25',
+  submitError: '\u4fdd\u5b58\u4e2a\u4eba\u4fe1\u606f\u5931\u8d25',
   name: '\u59d3\u540d',
   email: '\u90ae\u7bb1',
   ledgerName: '\u8d26\u672c\u540d\u79f0',
@@ -134,7 +134,7 @@ export default function EditProfileScreen() {
       await actions.updateProfile?.(draft);
       router.back();
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : copy.saveFailed);
+      setSubmitError(error instanceof Error ? error.message : copy.submitError);
     }
   }, [actions, availability.canUpdateProfile, draft, router]);
 

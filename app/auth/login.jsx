@@ -104,6 +104,7 @@ export default function LoginScreen() {
   const availability = useMemo(() => getActionAvailability(actions), [actions]);
   const [draft, setDraft] = useState(() => buildAuthFormDraft('login'));
   const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const capabilityNotice = buildCapabilityNotice('login', availability);
 
