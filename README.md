@@ -70,10 +70,17 @@ npm run start
 
 登录后与账本、分类等相关的请求会使用 **`EXPO_PUBLIC_API_BASE_URL`** 作为后端根地址。
 
-在项目根目录创建 `.env`（勿提交密钥类配置；仓库若有 `.gitignore` 请保留对 `.env` 的忽略）：
+仓库根目录提供 **`.env.example`**，可复制为本地 `.env` 再修改（`.env` 已被 Git 忽略，勿提交密钥）：
 
 ```bash
-# 示例：本地局域网后端（请改成你机器或服务器的地址与端口）
+cp .env.example .env
+# Windows PowerShell: Copy-Item .env.example .env
+```
+
+`.env` 中示例：
+
+```bash
+# 本地或局域网后端（真机请改成电脑在当前 Wi‑Fi 下的可达地址与端口）
 EXPO_PUBLIC_API_BASE_URL=http://192.168.1.100:3000
 ```
 
