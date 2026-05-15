@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { accountingCopy } from '../../constants/accounting-copy.js';
 import {
   buildDateTimeInput,
   buildTransactionFormSubmitPayload,
@@ -18,8 +19,8 @@ const categoryOptions = [
 
 test('filters transaction form category options to active entries for the selected type', () => {
   assert.deepEqual(getTransactionFormCategoryOptions(categoryOptions, 'expense'), [
-    { value: 'cat-food', label: 'Food', type: 'expense', isActive: true },
     { value: 'cat-commute', label: 'Commute', type: 'expense', isActive: true },
+    { value: 'cat-food', label: 'Food', type: 'expense', isActive: true },
   ]);
   assert.deepEqual(getTransactionFormCategoryOptions(categoryOptions, 'income'), [
     { value: 'cat-salary', label: 'Salary', type: 'income', isActive: true },
@@ -39,7 +40,7 @@ test('creates a create-mode draft with filtered defaults and formatted inputs', 
     {
       type: 'income',
       amountInput: '',
-      categoryId: 'cat-salary',
+      categoryId: '',
       accountId: 'acc-wechat',
       dateInput: '2026-05-12',
       timeInput: '17:45',
@@ -127,6 +128,24 @@ test('returns field errors when submit payload input is incomplete or invalid', 
     'categoryId',
     'dateInput',
   ]);
+});
+
+test('does not produce a submit payload when amount input is empty after an invalid settle', () => {
+  const result = buildTransactionFormSubmitPayload(
+    {
+      type: 'expense',
+      amountInput: '',
+      categoryId: 'cat-food',
+      accountId: 'acc-cash',
+      dateInput: '2026-05-15',
+      timeInput: '09:39',
+      note: '',
+    },
+    { timeZoneOffset: '+08:00', defaultSyncStatus: 'pending' }
+  );
+
+  assert.equal(result.values, null);
+  assert.equal(result.errors.amountInput, accountingCopy.form.errors.amount);
 });
 
 test('formats date-only display input and can rebuild a datetime payload input', () => {
