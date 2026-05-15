@@ -4,8 +4,10 @@ import test from 'node:test';
 import {
   addMonthsToDateInput,
   buildCalendarWeeks,
+  createCalendarDayLabelTextStyle,
   formatDatePickerLabel,
   formatDatePickerValue,
+  isDateInputAfter,
 } from './date-picker-support.js';
 
 test('formats date picker values into stable yyyy-mm-dd strings', () => {
@@ -29,4 +31,17 @@ test('moves the visible month backward and forward', () => {
 
 test('formats a readable date picker label', () => {
   assert.match(formatDatePickerLabel('2026-05-12'), /2026.*5.*12/);
+});
+
+test('detects date inputs after a maximum selectable date', () => {
+  assert.equal(isDateInputAfter('2026-05-16', '2026-05-15'), true);
+  assert.equal(isDateInputAfter('2026-05-15', '2026-05-15'), false);
+  assert.equal(isDateInputAfter('2026-05-14', '2026-05-15'), false);
+});
+
+test('returns calendar day label text styles that keep Android day numbers vertically centered', () => {
+  assert.deepEqual(createCalendarDayLabelTextStyle(), {
+    includeFontPadding: false,
+    textAlign: 'center',
+  });
 });

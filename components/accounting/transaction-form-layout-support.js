@@ -1,8 +1,8 @@
 /**
- * @param {{ lg: number }} spacing
+ * @param {{ sm: number }} spacing
  */
 export function getTransactionFormContainerStyle(spacing) {
   return {
-    gap: spacing.lg,
+    gap: spacing.sm,
   };
 }

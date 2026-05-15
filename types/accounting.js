@@ -38,9 +38,12 @@
  * @property {EntryType} type
  * @property {boolean} isActive
  * @property {boolean | undefined} [isCustom]
+ * @property {boolean | undefined} [isSystem]
  * @property {string | undefined} [remoteId]
  * @property {string | null | undefined} [deletedAt]
  * @property {string | undefined} [color]
+ * @property {string | undefined} [iconName]
+ * @property {number | undefined} [sortOrder]
  */
 
 /**

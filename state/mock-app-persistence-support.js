@@ -1,3 +1,5 @@
+import { mergeWithBuiltInCategories } from '../constants/accounting-categories.js';
+
 export const MOCK_APP_CUSTOM_DEFINITIONS_STORAGE_KEY =
   '@accounting/mock-app/custom-definitions/v1';
 
@@ -21,7 +23,9 @@ export function selectPersistedCustomDefinitions(state) {
 export function mergePersistedCustomDefinitions(state, persisted) {
   return {
     ...state,
-    categories: mergeUniqueById(state.categories, persisted.categories ?? []),
+    categories: mergeWithBuiltInCategories(
+      mergeUniqueById(state.categories, persisted.categories ?? [])
+    ),
   };
 }
 

@@ -1,14 +1,14 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useMemo, useState } from 'react';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   AccountingScreen,
+  CategoryIcon,
   EmptyState,
   FeedbackDialog,
   FormField,
-  ManagementRow,
-  SectionHeader,
   SurfaceCard,
 } from '@/components/accounting';
 import { buildAuthRequiredDialogState } from '@/components/accounting/auth-required-dialog-support';
@@ -23,7 +23,6 @@ import { useMockApp } from '@/providers/mock-app-provider';
 const ENTRY_TYPES = ['expense', 'income'];
 const copy = {
   title: '\u5206\u7c7b\u7ba1\u7406',
-  subtitle: '\u65b0\u5efa\u5206\u7c7b\uff0c\u540e\u7eed\u518d\u63a5\u5165\u7f16\u8f91\u548c\u5f00\u5173\u80fd\u529b',
   createUnavailableTitle: '\u5f53\u524d provider \u6682\u4e0d\u652f\u6301\u65b0\u5efa\u5206\u7c7b',
   createUnavailableDescription: '\u8868\u5355\u4f1a\u7ee7\u7eed\u663e\u793a\uff0c\u4f46\u6dfb\u52a0\u64cd\u4f5c\u4f1a\u4fdd\u6301\u7981\u7528\uff0c\u76f4\u5230\u66b4\u9732 addCategory \u80fd\u529b\u3002',
   manageUnavailableTitle: '\u73b0\u6709\u5206\u7c7b\u6682\u65f6\u53ea\u8bfb',
@@ -45,7 +44,6 @@ const copy = {
   editTitle: '\u7f16\u8f91\u5206\u7c7b',
   saveEdit: '\u4fdd\u5b58',
   cancelEdit: '\u53d6\u6d88',
-  editHint: '\u957f\u6309\u81ea\u5efa\u5206\u7c7b\u53ef\u7f16\u8f91\u6216\u5220\u9664',
   deleteConfirmTitle: '\u786e\u8ba4\u5220\u9664',
   deleteConfirmBody: '\u5220\u9664\u7c7b\u522b\u4f1a\u540c\u65f6\u5220\u9664\u8be5\u7c7b\u522b\u4e0b\u7684\u6240\u6709\u8bb0\u5f55',
   deleteAction: '\u5220\u9664',
@@ -53,6 +51,10 @@ const copy = {
   editAction: '\u7f16\u8f91',
   acknowledge: '知道了',
 };
+
+function resolveEntryTypeParam(value) {
+  return value === 'income' ? 'income' : 'expense';
+}
 
 function EntryTypePicker({ value, onChange, disabled }) {
   const theme = useAccountingTheme();
@@ -165,12 +167,17 @@ function createButtonStyles({ colors, spacing, radius, typography }) {
 }
 
 export default function CategoriesScreen() {
+  const params = useLocalSearchParams();
   const router = useRouter();
   const { categories, actions, isAuthenticated } = useMockApp();
   const theme = useAccountingTheme();
+  const { colors } = theme;
   const styles = createStyles(theme);
+  const initialEntryType = resolveEntryTypeParam(
+    Array.isArray(params.entryType) ? params.entryType[0] : params.entryType
+  );
   const availability = useMemo(() => getActionAvailability(actions), [actions]);
-  const [entryType, setEntryType] = useState('expense');
+  const [entryType, setEntryType] = useState(initialEntryType);
   const [name, setName] = useState('');
   const [dialogState, setDialogState] = useState(null);
   const [editCategory, setEditCategory] = useState(
@@ -197,46 +204,40 @@ export default function CategoriesScreen() {
     });
   }, [createNotice, manageNotice]);
 
-  const openCategoryMenu = React.useCallback(
+  const beginEditCategory = React.useCallback((row) => {
+    if (!row.item.isCustom) {
+      return;
+    }
+
+    setEditName(row.item.name);
+    setEditEntryType(row.item.type);
+    setEditCategory({ id: row.id, name: row.item.name, type: row.item.type });
+  }, []);
+
+  const requestDeleteCategory = React.useCallback(
     (row) => {
       if (!row.item.isCustom) {
         return;
       }
 
-      Alert.alert(row.item.name, undefined, [
+      Alert.alert(copy.deleteConfirmTitle, copy.deleteConfirmBody, [
         { text: copy.cancelAction, style: 'cancel' },
-        {
-          text: copy.editAction,
-          onPress: () => {
-            setEditName(row.item.name);
-            setEditEntryType(row.item.type);
-            setEditCategory({ id: row.id, name: row.item.name, type: row.item.type });
-          },
-        },
         {
           text: copy.deleteAction,
           style: 'destructive',
           onPress: () =>
-            Alert.alert(copy.deleteConfirmTitle, copy.deleteConfirmBody, [
-              { text: copy.cancelAction, style: 'cancel' },
-              {
-                text: copy.deleteAction,
-                style: 'destructive',
-                onPress: () =>
-                  void actions.deleteCategory?.(row.id).catch((error) => {
-                    setDialogState(
-                      error instanceof Error && error.message === '请先登录'
-                        ? buildAuthRequiredDialogState(() => {
-                            router.push('/auth/login');
-                          })
-                        : {
-                            title: error instanceof Error ? error.message : copy.submitError,
-                            actions: [{ label: copy.acknowledge, tone: 'primary' }],
-                          }
-                    );
-                  }),
-              },
-            ]),
+            void actions.deleteCategory?.(row.id).catch((error) => {
+              setDialogState(
+                error instanceof Error && error.message === '请先登录'
+                  ? buildAuthRequiredDialogState(() => {
+                      router.push('/auth/login');
+                    })
+                  : {
+                      title: error instanceof Error ? error.message : copy.submitError,
+                      actions: [{ label: copy.acknowledge, tone: 'primary' }],
+                    }
+              );
+            }),
         },
       ]);
     },
@@ -320,10 +321,8 @@ export default function CategoriesScreen() {
     <>
       <Stack.Screen options={{ title: copy.title }} />
       <AccountingScreen>
-        <SectionHeader title={copy.title} subtitle={copy.subtitle} />
         {isAuthenticated ? (
           <>
-            <Text style={styles.hint}>{copy.editHint}</Text>
             <SurfaceCard style={styles.card}>
               <Text style={styles.sectionTitle}>{copy.newCategory}</Text>
               <View style={styles.fieldGroup}>
@@ -352,16 +351,66 @@ export default function CategoriesScreen() {
               </Text>
               <View style={styles.list}>
                 {viewModel.rows.map((row) => (
-                  <ManagementRow
+                  <View
                     key={row.id}
-                    title={row.item.name}
-                    subtitle={row.item.type === 'expense' ? copy.expense : copy.income}
-                    meta={row.isActive ? copy.tapToDeactivate : copy.tapToActivate}
-                    badge={row.isActive ? null : { label: copy.inactive, tone: 'warning' }}
-                    disabled={!viewModel.canManageExisting}
-                    onPress={() => void handleToggleActive(row.id, row.isActive)}
-                    onLongPress={() => openCategoryMenu(row)}
-                  />
+                    style={[styles.row, !viewModel.canManageExisting ? styles.rowDisabled : null]}>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={!viewModel.canManageExisting}
+                      onPress={() => void handleToggleActive(row.id, row.isActive)}
+                      style={({ pressed }) => [
+                        styles.rowMain,
+                        pressed && viewModel.canManageExisting ? styles.rowPressed : null,
+                      ]}>
+                      <CategoryIcon iconName={row.item.iconName} color={row.item.color ?? colors.icon} />
+                      <View style={styles.rowCopy}>
+                        <View style={styles.rowTitleLine}>
+                          <Text style={styles.rowTitle}>{row.item.name}</Text>
+                          <View style={row.item.isSystem ? styles.systemBadge : styles.customBadge}>
+                            <Text style={row.item.isSystem ? styles.systemBadgeText : styles.customBadgeText}>
+                              {row.item.isSystem ? '系统' : '自定义'}
+                            </Text>
+                          </View>
+                          {!row.isActive ? (
+                            <View style={styles.inactiveBadge}>
+                              <Text style={styles.inactiveBadgeText}>{copy.inactive}</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        <Text style={styles.rowMeta}>
+                          {row.isActive ? copy.tapToDeactivate : copy.tapToActivate}
+                        </Text>
+                      </View>
+                    </Pressable>
+                    {row.item.isCustom && viewModel.canManageExisting ? (
+                      <View style={styles.rowActions}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={copy.editAction}
+                          hitSlop={8}
+                          onPress={() => beginEditCategory(row)}
+                          style={({ pressed }) => [
+                            styles.roundIconButton,
+                            styles.roundIconButtonEdit,
+                            pressed ? styles.roundIconButtonPressed : null,
+                          ]}>
+                          <Ionicons name="pencil" size={18} color={colors.brandContrast} />
+                        </Pressable>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={copy.deleteAction}
+                          hitSlop={8}
+                          onPress={() => requestDeleteCategory(row)}
+                          style={({ pressed }) => [
+                            styles.roundIconButton,
+                            styles.roundIconButtonDelete,
+                            pressed ? styles.roundIconButtonPressed : null,
+                          ]}>
+                          <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                        </Pressable>
+                      </View>
+                    ) : null}
+                  </View>
                 ))}
               </View>
             </View>
@@ -421,7 +470,7 @@ export default function CategoriesScreen() {
   );
 }
 
-function createStyles({ colors, spacing, typography }) {
+function createStyles({ colors, spacing, typography, radius }) {
   return StyleSheet.create({
     card: {
       gap: spacing.md,
@@ -445,10 +494,105 @@ function createStyles({ colors, spacing, typography }) {
     list: {
       gap: spacing.sm,
     },
-    hint: {
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      borderRadius: radius.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingLeft: spacing.md,
+      paddingRight: spacing.sm,
+      paddingVertical: spacing.sm,
+    },
+    rowMain: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      minWidth: 0,
+    },
+    rowActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+    },
+    roundIconButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    roundIconButtonEdit: {
+      backgroundColor: colors.brandSoft,
+    },
+    roundIconButtonDelete: {
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    roundIconButtonPressed: {
+      opacity: 0.82,
+    },
+    rowPressed: {
+      opacity: 0.85,
+    },
+    rowDisabled: {
+      opacity: 0.72,
+    },
+    rowCopy: {
+      flex: 1,
+      gap: 6,
+    },
+    rowTitleLine: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.xs,
+      flexWrap: 'wrap',
+    },
+    rowTitle: {
+      fontSize: typography.bodyLarge,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    rowMeta: {
       fontSize: typography.caption,
       color: colors.textSecondary,
-      marginBottom: spacing.sm,
+    },
+    systemBadge: {
+      borderRadius: 999,
+      backgroundColor: colors.highlightSoft,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+    },
+    systemBadgeText: {
+      fontSize: typography.caption,
+      fontWeight: '700',
+      color: colors.highlightContrast,
+    },
+    customBadge: {
+      borderRadius: 999,
+      backgroundColor: colors.brandSoft,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+    },
+    customBadgeText: {
+      fontSize: typography.caption,
+      fontWeight: '700',
+      color: colors.brandContrast,
+    },
+    inactiveBadge: {
+      borderRadius: 999,
+      backgroundColor: colors.surfaceAlt,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 4,
+    },
+    inactiveBadgeText: {
+      fontSize: typography.caption,
+      fontWeight: '700',
+      color: colors.warning,
     },
     modalBackdrop: {
       flex: 1,

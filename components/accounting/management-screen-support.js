@@ -52,6 +52,24 @@ function compareNames(left, right) {
   });
 }
 
+function compareCategories(left, right) {
+  const leftSystemWeight = left?.isSystem ? 0 : 1;
+  const rightSystemWeight = right?.isSystem ? 0 : 1;
+
+  if (leftSystemWeight !== rightSystemWeight) {
+    return leftSystemWeight - rightSystemWeight;
+  }
+
+  const leftSortOrder = Number.isFinite(left?.sortOrder) ? left.sortOrder : Number.MAX_SAFE_INTEGER;
+  const rightSortOrder = Number.isFinite(right?.sortOrder) ? right.sortOrder : Number.MAX_SAFE_INTEGER;
+
+  if (leftSortOrder !== rightSortOrder) {
+    return leftSortOrder - rightSortOrder;
+  }
+
+  return compareNames(left, right);
+}
+
 export function buildCategoryManagementViewModel(categories, entryType, actions) {
   const availability = getActionAvailability(actions);
   const canManageExisting =
@@ -61,7 +79,7 @@ export function buildCategoryManagementViewModel(categories, entryType, actions)
   const rows = [...categories]
     .filter((category) => category.deletedAt == null)
     .filter((category) => category.type === entryType)
-    .sort(compareNames)
+    .sort(compareCategories)
     .map((category) => ({
       id: category.id,
       isActive: Boolean(category.isActive),

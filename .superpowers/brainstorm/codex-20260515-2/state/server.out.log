@@ -1,0 +1,4 @@
+{"type":"owner-pid-invalid","pid":999999,"reason":"dead at startup"}
+{"type":"server-started","port":54083,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:54083","screen_dir":"D:\\lpy\\system\\account-app\\account-app-mobile\\.superpowers\\brainstorm\\codex-20260515-2\\content","state_dir":"D:\\lpy\\system\\account-app\\account-app-mobile\\.superpowers\\brainstorm\\codex-20260515-2\\state"}
+{"type":"screen-updated","file":"D:\\lpy\\system\\account-app\\account-app-mobile\\.superpowers\\brainstorm\\codex-20260515-2\\content\\layout-v1.html"}
+{"type":"server-stopped","reason":"idle timeout"}

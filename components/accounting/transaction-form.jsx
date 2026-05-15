@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { accountingCopy } from '../../constants/accounting-copy.js';
 import { CategoryIcon } from './category-icon.js';
@@ -8,22 +9,23 @@ import {
   addMonthsToDateInput,
   buildCalendarWeeks,
   createCalendarDayLabelTextStyle,
-  formatDatePickerLabel,
+  isDateInputAfter,
 } from './date-picker-support.js';
 import {
   appendAmountExpressionKey,
   backspaceAmountExpression,
-  clearAmountExpression,
   createAmountExpressionState,
   settleAmountExpression,
 } from './transaction-amount-expression-support.js';
 import {
   buildTransactionFormSubmitPayload,
   createTransactionFormDraft,
+  formatDateInput,
   getTransactionFormCategoryOptions,
 } from './transaction-form-support.js';
 import {
   resolveTransactionDraftAmountInput,
+  resolveTransactionFormPrimaryAmountAction,
   selectTransactionFormDraftCategory,
 } from './transaction-form-ui-support.js';
 import { getTransactionFormContainerStyle } from './transaction-form-layout-support.js';
@@ -47,23 +49,21 @@ const entryTypeOptions = [
 ];
 
 const keypadRows = [
-  ['7', '8', '9', '+'],
+  ['7', '8', '9', 'date'],
   ['4', '5', '6', '-'],
-  ['1', '2', '3', 'backspace'],
-  ['.', '0', 'clear', 'settle'],
+  ['1', '2', '3', '+'],
+  ['.', '0', 'backspace', 'submit'],
 ];
 
 const inlineCopy = {
-  amountHint: '\u9009\u62e9\u5206\u7c7b\u540e\u8f93\u5165\u91d1\u989d',
-  amountLabel: '\u91d1\u989d',
-  chooseDate: '\u9009\u62e9\u65e5\u671f',
+  amountHint: '\u8bf7\u8f93\u5165\u91d1\u989d',
   complete: '\u5b8c\u6210',
   calendarConfirm: '\u786e\u5b9a',
   calendarWeekdays: ['\u65e5', '\u4e00', '\u4e8c', '\u4e09', '\u56db', '\u4e94', '\u516d'],
-  keyboardClear: 'C',
   keyboardBackspace: '\u232b',
   manageCategories: '\u5206\u7c7b\u7ba1\u7406',
-  timeLabel: '\u65f6\u95f4',
+  notePlaceholder: '\u70b9\u51fb\u586b\u5199\u5907\u6ce8',
+  today: '\u4eca\u5929',
 };
 
 /**
@@ -76,7 +76,6 @@ const inlineCopy = {
  *   defaultSyncStatus?: SyncStatus | undefined,
  *   timeZoneOffset?: string | undefined,
  *   submitLabel?: string | undefined,
- *   deleteLabel?: string | undefined,
  *   disabled?: boolean | undefined,
  *   busy?: boolean | undefined,
  *   onSubmit: (values: {
@@ -89,7 +88,6 @@ const inlineCopy = {
  *     syncStatus: SyncStatus,
  *   }) => void,
  *   onManageCategories?: ((entryType: EntryType) => void) | undefined,
- *   onDelete?: (() => void) | undefined,
  * }} props
  */
 export function TransactionForm({
@@ -101,12 +99,10 @@ export function TransactionForm({
   defaultSyncStatus = 'pending',
   timeZoneOffset = '+00:00',
   submitLabel,
-  deleteLabel = accountingCopy.actions.delete,
   disabled = false,
   busy = false,
   onSubmit,
   onManageCategories,
-  onDelete,
 }) {
   const { colors, spacing, radius, typography, shadow } = useAccountingTheme();
   const styles = useMemo(
@@ -146,7 +142,11 @@ export function TransactionForm({
     [categoryOptions, draft.type]
   );
   const calendarWeeks = useMemo(() => buildCalendarWeeks(visibleMonth), [visibleMonth]);
+  const todayDateInput = useMemo(() => formatDateInput(new Date(), timeZoneOffset), [timeZoneOffset]);
   const completeButtonLabel = submitLabel ?? inlineCopy.complete;
+  const primaryAmountAction = resolveTransactionFormPrimaryAmountAction(amountState, {
+    submitLabel: busy ? accountingCopy.form.saving : completeButtonLabel,
+  });
   const disableActions = disabled || busy;
   const shouldShowBottomPanel = Boolean(draft.categoryId);
 
@@ -173,6 +173,8 @@ export function TransactionForm({
     setDatePickerOpen(false);
   }, [
     defaultType,
+    defaultSyncStatus,
+    implicitAccountId,
     initialValues,
     mode,
     timeZoneOffset,
@@ -249,98 +251,73 @@ export function TransactionForm({
         </View>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionLabel}>{accountingCopy.form.category}</Text>
-        <View style={styles.optionGrid}>
-          {visibleCategories.map((option) => (
-            <View key={option.value} style={styles.optionGridItem}>
-              <OptionChip
-                active={draft.categoryId === option.value}
-                color={option.color}
+      <ScrollView
+        contentContainerStyle={[
+          styles.categoryScrollContent,
+          shouldShowBottomPanel ? styles.categoryScrollContentWithBottomPanel : null,
+        ]}
+        showsVerticalScrollIndicator={false}
+        style={styles.categoryScroll}>
+        <View style={styles.section}>
+          <View style={styles.categoryHeader}>
+            <Text style={styles.sectionLabel}>{accountingCopy.form.category}</Text>
+            {onManageCategories ? (
+              <Pressable
+                accessibilityLabel={inlineCopy.manageCategories}
+                accessibilityRole="button"
                 disabled={disableActions}
-                iconName={option.iconName}
-                label={option.label}
-                variant="category"
-                onPress={() =>
-                  setDraft((currentDraft) =>
-                    selectTransactionFormDraftCategory(currentDraft, option.value)
-                  )
-                }
-                styles={styles}
-              />
-            </View>
-          ))}
-          <View style={styles.optionGridItem}>
-            <SettingsChip
-              disabled={disableActions}
-              label={inlineCopy.manageCategories}
-              onPress={() => onManageCategories?.(draft.type)}
-              styles={styles}
-            />
+                onPress={() => onManageCategories?.(draft.type)}
+                style={({ pressed }) => [
+                  styles.categoryManageButton,
+                  disableActions ? styles.buttonDisabled : null,
+                  pressed && !disableActions ? styles.optionChipPressed : null,
+                ]}>
+                <Ionicons color={colors.icon} name="settings-outline" size={18} />
+              </Pressable>
+            ) : null}
           </View>
+          <View style={styles.optionGrid}>
+            {visibleCategories.map((option) => (
+              <View key={option.value} style={styles.optionGridItem}>
+                <OptionChip
+                  active={draft.categoryId === option.value}
+                  color={option.color}
+                  disabled={disableActions}
+                  iconName={option.iconName}
+                  label={option.label}
+                  variant="category"
+                  onPress={() =>
+                    setDraft((currentDraft) =>
+                      selectTransactionFormDraftCategory(currentDraft, option.value)
+                    )
+                  }
+                  styles={styles}
+                />
+              </View>
+            ))}
+          </View>
+          {errors.categoryId ? <Text style={styles.errorText}>{errors.categoryId}</Text> : null}
         </View>
-        {errors.categoryId ? <Text style={styles.errorText}>{errors.categoryId}</Text> : null}
-      </View>
+      </ScrollView>
 
       {shouldShowBottomPanel ? (
         <View style={styles.bottomPanel}>
           <View style={styles.amountPanel}>
-            <Text style={styles.amountPanelLabel}>{inlineCopy.amountLabel}</Text>
             <Text style={styles.amountPanelValue}>
-              {amountState.expression || amountState.amount || '0'}
+              {amountState.expression || amountState.amount || '0.00'}
             </Text>
-            {amountState.expression && amountState.expression !== amountState.amount ? (
-              <Text style={styles.amountPanelHint}>{amountState.amount || inlineCopy.amountHint}</Text>
-            ) : (
-              <Text style={styles.amountPanelHint}>{inlineCopy.amountHint}</Text>
-            )}
             {errors.amountInput ? <Text style={styles.errorText}>{errors.amountInput}</Text> : null}
           </View>
 
           <View style={styles.inlineFields}>
-            <View style={styles.inlineFieldRow}>
-              <Pressable
-                accessibilityRole="button"
-                disabled={disableActions}
-                onPress={() => {
-                  setVisibleMonth(draft.dateInput.slice(0, 7));
-                  setDatePickerOpen(true);
-                }}
-                style={({ pressed }) => [
-                  styles.inlineFieldCard,
-                  styles.inlineFieldHalf,
-                  disableActions && styles.buttonDisabled,
-                  pressed && !disableActions ? styles.optionChipPressed : null,
-                ]}>
-                <Text style={styles.inlineFieldLabel}>{accountingCopy.form.dateTime}</Text>
-                <Text style={styles.inlineFieldValue}>{formatDatePickerLabel(draft.dateInput)}</Text>
-              </Pressable>
-
-              <View style={[styles.inlineFieldCard, styles.inlineFieldHalf]}>
-                <Text style={styles.inlineFieldLabel}>{inlineCopy.timeLabel}</Text>
-                <TextInput
-                  editable={!disableActions}
-                  onChangeText={(timeInput) =>
-                    setDraft((currentDraft) => ({ ...currentDraft, timeInput }))
-                  }
-                  placeholder="12:30"
-                  placeholderTextColor={colors.textMuted}
-                  style={styles.timeInput}
-                  value={draft.timeInput}
-                />
-              </View>
-            </View>
-
             <View style={styles.inlineFieldCard}>
-              <Text style={styles.inlineFieldLabel}>{accountingCopy.form.note}</Text>
+              <Text style={styles.inlineFieldPrefix}>{'\u5907\u6ce8\uff1a'}</Text>
               <TextInput
                 editable={!disableActions}
-                multiline
                 onChangeText={(note) => setDraft((currentDraft) => ({ ...currentDraft, note }))}
-                placeholder={accountingCopy.form.notePlaceholder}
+                placeholder={inlineCopy.notePlaceholder}
                 placeholderTextColor={colors.textMuted}
                 style={styles.noteInput}
-                textAlignVertical="top"
                 value={draft.note}
               />
             </View>
@@ -350,10 +327,27 @@ export function TransactionForm({
             {keypadRows.flat().map((key) => (
               <KeypadButton
                 key={key}
-                disabled={disableActions}
-                label={getKeypadButtonLabel(key)}
-                variant={key === 'settle' ? 'accent' : key === 'clear' ? 'subtle' : 'default'}
+                disabled={key === 'submit' ? disableActions || primaryAmountAction.disabled : disableActions}
+                iconName={getKeypadButtonIcon(key)}
+                label={getKeypadButtonLabel(key, primaryAmountAction.label, draft.dateInput)}
+                variant={getKeypadButtonVariant(key)}
                 onPress={() => {
+                  if (key === 'date') {
+                    setVisibleMonth(draft.dateInput.slice(0, 7));
+                    setDatePickerOpen(true);
+                    return;
+                  }
+
+                  if (key === 'submit') {
+                    if (primaryAmountAction.type === 'settle') {
+                      handleAmountStateChange(settleAmountExpression(amountState));
+                      return;
+                    }
+
+                    handleSubmit();
+                    return;
+                  }
+
                   const nextAmountState = reduceAmountState(amountState, key);
                   handleAmountStateChange(nextAmountState);
                 }}
@@ -361,44 +355,13 @@ export function TransactionForm({
               />
             ))}
           </View>
-
-          <View style={styles.actions}>
-            <Pressable
-              accessibilityRole="button"
-              disabled={disableActions || !amountState.canSubmit}
-              onPress={handleSubmit}
-              style={({ pressed }) => [
-                styles.primaryButton,
-                (disableActions || !amountState.canSubmit) && styles.buttonDisabled,
-                pressed && !(disableActions || !amountState.canSubmit)
-                  ? styles.primaryButtonPressed
-                  : null,
-              ]}>
-              <Text style={styles.primaryButtonLabel}>
-                {busy ? accountingCopy.form.saving : completeButtonLabel}
-              </Text>
-            </Pressable>
-
-            {mode === 'edit' && onDelete ? (
-              <Pressable
-                accessibilityRole="button"
-                disabled={disableActions}
-                onPress={onDelete}
-                style={({ pressed }) => [
-                  styles.secondaryButton,
-                  disableActions && styles.buttonDisabled,
-                  pressed && !disableActions ? styles.secondaryButtonPressed : null,
-                ]}>
-                <Text style={styles.secondaryButtonLabel}>{deleteLabel}</Text>
-              </Pressable>
-            ) : null}
-          </View>
         </View>
       ) : null}
 
       <DatePickerModal
         disableActions={disableActions}
         draftDateInput={draft.dateInput}
+        maxDateInput={todayDateInput}
         onCancel={() => setDatePickerOpen(false)}
         onChangeMonth={(monthDelta) =>
           setVisibleMonth((current) => addMonthsToDateInput(`${current}-01`, monthDelta).slice(0, 7))
@@ -438,35 +401,57 @@ function reduceAmountState(currentAmountState, key) {
     return backspaceAmountExpression(currentAmountState);
   }
 
-  if (key === 'clear') {
-    return clearAmountExpression();
-  }
-
-  if (key === 'settle') {
-    return settleAmountExpression(currentAmountState);
-  }
-
   return appendAmountExpressionKey(currentAmountState, key);
 }
 
 /**
  * @param {string} key
+ * @param {string} primaryActionLabel
+ * @param {string} dateInput
  * @returns {string}
  */
-function getKeypadButtonLabel(key) {
+function getKeypadButtonLabel(key, primaryActionLabel, dateInput) {
+  if (key === 'date') {
+    return dateInput;
+  }
+
   if (key === 'backspace') {
-    return inlineCopy.keyboardBackspace;
+    return '';
   }
 
-  if (key === 'clear') {
-    return inlineCopy.keyboardClear;
-  }
-
-  if (key === 'settle') {
-    return '=';
+  if (key === 'submit') {
+    return primaryActionLabel;
   }
 
   return key;
+}
+
+/**
+ * @param {string} key
+ * @returns {'default' | 'submit' | 'date'}
+ */
+function getKeypadButtonVariant(key) {
+  if (key === 'submit') {
+    return 'submit';
+  }
+
+  if (key === 'date') {
+    return 'date';
+  }
+
+  return 'default';
+}
+
+/**
+ * @param {string} key
+ * @returns {import('@expo/vector-icons/Ionicons').defaultProps['name'] | undefined}
+ */
+function getKeypadButtonIcon(key) {
+  if (key === 'backspace') {
+    return 'backspace-outline';
+  }
+
+  return undefined;
 }
 
 /**
@@ -531,39 +516,14 @@ function OptionChip({
 /**
  * @param {{
  *   disabled: boolean,
+ *   iconName?: import('@expo/vector-icons/Ionicons').defaultProps['name'] | undefined,
  *   label: string,
  *   onPress: () => void,
  *   styles: TransactionFormStyles,
+ *   variant: 'default' | 'submit' | 'date',
  * }} props
  */
-function SettingsChip({ disabled, label, onPress, styles }) {
-  return (
-    <Pressable
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.actionChip,
-        disabled ? styles.buttonDisabled : null,
-        pressed && !disabled ? styles.optionChipPressed : null,
-      ]}>
-      <CategoryIcon color="#667085" iconName="settings-outline" />
-      <Text style={styles.optionChipLabel}>{label}</Text>
-    </Pressable>
-  );
-}
-
-/**
- * @param {{
- *   disabled: boolean,
- *   label: string,
- *   onPress: () => void,
- *   styles: TransactionFormStyles,
- *   variant: 'default' | 'accent' | 'subtle',
- * }} props
- */
-function KeypadButton({ disabled, label, onPress, styles, variant }) {
+function KeypadButton({ disabled, iconName, label, onPress, styles, variant }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -571,18 +531,30 @@ function KeypadButton({ disabled, label, onPress, styles, variant }) {
       onPress={onPress}
       style={({ pressed }) => [
         styles.keypadButton,
-        variant === 'accent' ? styles.keypadButtonAccent : null,
-        variant === 'subtle' ? styles.keypadButtonSubtle : null,
+        variant === 'submit' ? styles.keypadButtonSubmit : null,
+        variant === 'date' ? styles.keypadButtonDate : null,
         disabled ? styles.buttonDisabled : null,
         pressed && !disabled ? styles.optionChipPressed : null,
       ]}>
-      <Text
-        style={[
-          styles.keypadButtonLabel,
-          variant === 'accent' ? styles.keypadButtonLabelAccent : null,
-        ]}>
-        {label}
-      </Text>
+      <View style={variant === 'date' ? styles.keypadButtonDateContent : styles.keypadButtonContent}>
+        {iconName ? (
+          <Ionicons
+            color={variant === 'submit' ? styles.keypadButtonLabelSubmit.color : styles.keypadButtonLabel.color}
+            name={iconName}
+            size={22}
+          />
+        ) : null}
+        {label ? (
+          <Text
+            style={[
+              styles.keypadButtonLabel,
+              variant === 'submit' ? styles.keypadButtonLabelSubmit : null,
+              variant === 'date' ? styles.keypadButtonLabelDate : null,
+            ]}>
+            {label}
+          </Text>
+        ) : null}
+      </View>
     </Pressable>
   );
 }
@@ -592,6 +564,7 @@ function KeypadButton({ disabled, label, onPress, styles, variant }) {
  *   open: boolean,
  *   visibleMonth: string,
  *   draftDateInput: string,
+ *   maxDateInput: string,
  *   weeks: Array<Array<{ key: string, dayNumber: number, value: string, inCurrentMonth: boolean }>>,
  *   disableActions: boolean,
  *   onCancel: () => void,
@@ -604,6 +577,7 @@ function DatePickerModal({
   open,
   visibleMonth,
   draftDateInput,
+  maxDateInput,
   weeks,
   disableActions,
   onCancel,
@@ -626,7 +600,7 @@ function DatePickerModal({
             <Text style={styles.calendarTitle}>{formatAccountingMonth(visibleMonth)}</Text>
             <Pressable
               accessibilityRole="button"
-              disabled={disableActions}
+              disabled={disableActions || visibleMonth >= maxDateInput.slice(0, 7)}
               onPress={() => onChangeMonth(1)}
               style={styles.calendarNavButton}>
               <Text style={styles.calendarNavLabel}>{'>'}</Text>
@@ -644,22 +618,26 @@ function DatePickerModal({
           <View style={styles.calendarGrid}>
             {weeks.flat().map((day) => {
               const active = day.value === draftDateInput;
+              const disabledDay = disableActions || isDateInputAfter(day.value, maxDateInput);
 
               return (
                 <Pressable
                   key={day.key}
                   accessibilityRole="button"
+                  disabled={disabledDay}
                   onPress={() => onSelect(day.value)}
                   style={({ pressed }) => [
                     styles.calendarDay,
                     day.inCurrentMonth ? null : styles.calendarDayMuted,
+                    disabledDay ? styles.calendarDayDisabled : null,
                     active ? styles.calendarDayActive : null,
-                    pressed ? styles.optionChipPressed : null,
+                    pressed && !disabledDay ? styles.optionChipPressed : null,
                   ]}>
                   <Text
                     style={[
                       styles.calendarDayLabel,
                       day.inCurrentMonth ? null : styles.calendarDayLabelMuted,
+                      disabledDay ? styles.calendarDayLabelDisabled : null,
                       active ? styles.calendarDayLabelActive : null,
                     ]}>
                     {day.dayNumber}
@@ -687,21 +665,52 @@ function DatePickerModal({
  */
 function createStyles(colors, spacing, radius, typography, cardShadow) {
   return StyleSheet.create({
-    container: getTransactionFormContainerStyle(spacing),
+    container: {
+      ...getTransactionFormContainerStyle(spacing),
+      flex: 1,
+      position: 'relative',
+    },
     section: {
-      gap: spacing.sm,
+      gap: spacing.xs,
     },
     typeTabs: {
       flexDirection: 'row',
-      gap: spacing.sm,
+      gap: spacing.xs,
+      minHeight: 42,
+      marginHorizontal: -spacing.sm,
       borderRadius: radius.xl,
       backgroundColor: colors.brandSoft,
-      padding: spacing.xs,
+      padding: 4,
     },
     sectionLabel: {
       fontSize: typography.body,
       fontWeight: '700',
       color: colors.textSecondary,
+    },
+    categoryHeader: {
+      minHeight: 36,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    categoryManageButton: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: radius.pill,
+      backgroundColor: colors.surfaceAlt,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    categoryScroll: {
+      flex: 1,
+    },
+    categoryScrollContent: {
+      paddingBottom: spacing.xl,
+    },
+    categoryScrollContentWithBottomPanel: {
+      paddingBottom: 430,
     },
     segmentedItem: {
       flex: 1,
@@ -722,12 +731,6 @@ function createStyles(colors, spacing, radius, typography, cardShadow) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    actionChip: {
-      width: '100%',
-      gap: spacing.sm,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
     optionChipPressed: {
       opacity: 0.85,
     },
@@ -742,7 +745,7 @@ function createStyles(colors, spacing, radius, typography, cardShadow) {
       color: colors.brand,
     },
     typeChip: {
-      minHeight: 48,
+      minHeight: 38,
       borderRadius: radius.pill,
       alignItems: 'center',
       justifyContent: 'center',
@@ -761,150 +764,112 @@ function createStyles(colors, spacing, radius, typography, cardShadow) {
       color: colors.textInverse,
     },
     bottomPanel: {
-      gap: spacing.md,
-      borderRadius: radius.lg,
+      position: 'absolute',
+      right: -spacing.md,
+      bottom: -spacing.xl,
+      left: -spacing.md,
+      gap: 0,
+      borderTopLeftRadius: radius.xl,
+      borderTopRightRadius: radius.xl,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surface,
-      padding: spacing.lg,
+      padding: 0,
+      overflow: 'hidden',
       ...cardShadow,
     },
     amountPanel: {
-      gap: spacing.xs,
-      borderRadius: radius.md,
-      backgroundColor: colors.brandSoft,
-      padding: spacing.md,
-    },
-    amountPanelLabel: {
-      fontSize: typography.caption,
-      fontWeight: '700',
-      color: colors.textSecondary,
+      minHeight: 46,
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.xs,
     },
     amountPanelValue: {
-      fontSize: 36,
-      fontWeight: '700',
+      fontSize: 30,
+      fontWeight: '400',
       color: colors.text,
     },
-    amountPanelHint: {
-      fontSize: typography.caption,
-      color: colors.textSecondary,
-    },
     inlineFields: {
-      gap: spacing.sm,
-    },
-    inlineFieldRow: {
-      flexDirection: 'row',
-      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingBottom: spacing.sm,
     },
     inlineFieldCard: {
-      borderRadius: radius.md,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.surfaceAlt,
-      padding: spacing.md,
+      borderRadius: radius.sm,
+      minHeight: 34,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: spacing.md,
       gap: spacing.xs,
     },
-    inlineFieldHalf: {
-      flex: 1,
-    },
-    inlineFieldLabel: {
-      fontSize: typography.caption,
+    inlineFieldPrefix: {
+      fontSize: typography.body,
       fontWeight: '700',
-      color: colors.textSecondary,
-    },
-    inlineFieldValue: {
-      fontSize: typography.bodyLarge,
-      fontWeight: '600',
       color: colors.text,
-    },
-    timeInput: {
-      fontSize: typography.bodyLarge,
-      fontWeight: '600',
-      color: colors.text,
-      paddingHorizontal: 0,
-      paddingVertical: 0,
     },
     noteInput: {
-      minHeight: 88,
       fontSize: typography.body,
       color: colors.text,
+      flex: 1,
       paddingHorizontal: 0,
       paddingVertical: 0,
     },
     keypadGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
     },
     keypadButton: {
-      width: '22%',
-      minHeight: 52,
-      borderRadius: radius.md,
-      borderWidth: 1,
+      width: '25%',
+      minHeight: 56,
+      borderRightWidth: 1,
+      borderBottomWidth: 1,
       borderColor: colors.border,
-      backgroundColor: colors.surfaceAlt,
+      backgroundColor: colors.surface,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    keypadButtonAccent: {
-      backgroundColor: colors.brand,
-      borderColor: colors.brand,
+    keypadButtonContent: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
     },
-    keypadButtonSubtle: {
-      backgroundColor: colors.highlight,
-      borderColor: colors.borderStrong,
+    keypadButtonDate: {
+      backgroundColor: colors.surface,
+    },
+    keypadButtonDateContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 4,
+    },
+    keypadButtonSubmit: {
+      backgroundColor: colors.brand,
     },
     keypadButtonLabel: {
       fontSize: typography.bodyLarge,
-      fontWeight: '700',
+      fontWeight: '500',
       color: colors.text,
     },
-    keypadButtonLabelAccent: {
+    keypadButtonLabelDate: {
+      fontSize: typography.caption,
+      fontWeight: '700',
+    },
+    keypadButtonLabelSubmit: {
+      fontSize: typography.title ?? typography.bodyLarge,
+      fontWeight: '700',
       color: colors.textInverse,
     },
     errorText: {
       fontSize: typography.caption,
       color: colors.danger,
-    },
-    actions: {
-      flexDirection: 'row',
-      gap: spacing.sm,
-    },
-    primaryButton: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: radius.md,
-      backgroundColor: colors.brand,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.md,
-    },
-    primaryButtonPressed: {
-      opacity: 0.9,
-    },
-    primaryButtonLabel: {
-      fontSize: typography.bodyLarge,
-      fontWeight: '700',
-      color: colors.textInverse,
-    },
-    secondaryButton: {
-      minWidth: 104,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: colors.borderStrong,
-      backgroundColor: colors.surfaceAlt,
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.md,
-    },
-    secondaryButtonPressed: {
-      opacity: 0.8,
-    },
-    secondaryButtonLabel: {
-      fontSize: typography.body,
-      fontWeight: '700',
-      color: colors.danger,
+      alignSelf: 'flex-start',
+      paddingTop: spacing.xs,
     },
     buttonDisabled: {
       opacity: 0.55,
@@ -973,6 +938,9 @@ function createStyles(colors, spacing, radius, typography, cardShadow) {
     calendarDayMuted: {
       opacity: 0.45,
     },
+    calendarDayDisabled: {
+      opacity: 0.3,
+    },
     calendarDayActive: {
       backgroundColor: colors.brandSoft,
       borderWidth: 1,
@@ -987,6 +955,9 @@ function createStyles(colors, spacing, radius, typography, cardShadow) {
     calendarDayLabelMuted: {
       color: colors.textSecondary,
     },
+    calendarDayLabelDisabled: {
+      color: colors.textMuted,
+    },
     calendarDayLabelActive: {
       color: colors.brandContrast,
     },
@@ -994,14 +965,14 @@ function createStyles(colors, spacing, radius, typography, cardShadow) {
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: radius.md,
-      backgroundColor: colors.highlight,
+      backgroundColor: colors.brand,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.sm,
     },
     modalFooterButtonLabel: {
       fontSize: typography.body,
       fontWeight: '700',
-      color: colors.text,
+      color: colors.textInverse,
     },
   });
 }

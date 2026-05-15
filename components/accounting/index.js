@@ -12,6 +12,7 @@ export { InteractiveCard } from './interactive-card.js';
 export { ManagementRow } from './management-row.js';
 export { MonthSwitcher } from './month-switcher.js';
 export { AccountingScreen } from './screen.js';
+export { CategoryIcon } from './category-icon.js';
 export { SectionHeader } from './section-header.js';
 export { SummaryCard } from './summary-card.js';
 export { SurfaceCard } from './surface-card.js';

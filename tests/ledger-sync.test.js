@@ -230,6 +230,43 @@ test('maps pulled remote ledger data into a local snapshot keyed by client ids',
   assert.equal(snapshot.syncUpdatedAt, '2026-05-13T13:00:00.000Z');
 });
 
+test('keeps deleted pulled categories as inactive tombstones for built-in category overrides', () => {
+  const payload = {
+    data: {
+      server_time: '2026-05-13T13:00:00.000Z',
+      categories: [
+        {
+          id: REMOTE_CATEGORY_ID,
+          client_id: 'cat-food',
+          name: 'Food',
+          kind: 'expense',
+          is_deleted: true,
+          deleted_at: '2026-05-13T12:00:00.000Z',
+          updated_at: '2026-05-13T12:00:00.000Z',
+        },
+      ],
+      transactions: [],
+    },
+  };
+
+  const snapshot = buildSnapshotFromRemotePayload(payload, {
+    currentMonth: '2026-05',
+    selectedEntryType: 'expense',
+    fallbackSyncUpdatedAt: '2026-05-13T10:00:00.000Z',
+  });
+
+  assert.deepEqual(snapshot.categories[0], {
+    id: 'cat-food',
+    remoteId: REMOTE_CATEGORY_ID,
+    name: 'Food',
+    type: 'expense',
+    isActive: false,
+    isCustom: true,
+    updatedAt: '2026-05-13T12:00:00.000Z',
+    deletedAt: '2026-05-13T12:00:00.000Z',
+  });
+});
+
 test('uses baseline implicit account id when remote payload has no accounts', () => {
   const payload = {
     data: {

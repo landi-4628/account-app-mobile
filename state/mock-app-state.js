@@ -2,6 +2,10 @@ import {
   mockCurrentMonth,
   mockSyncSummary,
 } from '../data/mock/mock-statistics.js';
+import {
+  builtInLedgerCategories,
+  mergeWithBuiltInCategories,
+} from '../constants/accounting-categories.js';
 import { mergePersistedCustomDefinitions } from './mock-app-persistence-support.js';
 import { applyMockAppSnapshot } from './mock-app-snapshot.js';
 
@@ -353,7 +357,7 @@ export function createInitialMockAppState() {
     quickAddOpen: false,
     user: { ...EMPTY_USER },
     implicitLedgerAccountId: '',
-    categories: [],
+    categories: builtInLedgerCategories.map((category) => ({ ...category })),
     transactions: [],
     seedTransactions: [],
     statisticsByMonth: {},
@@ -447,7 +451,7 @@ export function mockAppReducer(state, action) {
     case 'addCategory':
       return {
         ...state,
-        categories: [...state.categories, action.category],
+        categories: mergeWithBuiltInCategories([...state.categories, action.category]),
       };
     case 'toggleCategoryActive':
       return {
@@ -488,7 +492,7 @@ export function mockAppReducer(state, action) {
     case 'reconcileCustomDefinitions':
       return {
         ...state,
-        categories: reconcileCustomRows(state.categories, action.categories),
+        categories: mergeWithBuiltInCategories(reconcileCustomRows(state.categories, action.categories)),
       };
     case 'hydrateSnapshot':
       return applyMockAppSnapshot(state, action.snapshot);

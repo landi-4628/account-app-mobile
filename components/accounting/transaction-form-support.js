@@ -9,6 +9,10 @@ import { accountingCopy } from '../../constants/accounting-copy.js';
  *   label: string,
  *   type?: EntryType | undefined,
  *   isActive?: boolean | undefined,
+ *   color?: string | undefined,
+ *   iconName?: string | undefined,
+ *   isSystem?: boolean | undefined,
+ *   sortOrder?: number | undefined,
  * }} TransactionFormOption
  */
 
@@ -56,7 +60,22 @@ const TIME_INPUT_PATTERN = /^\d{2}:\d{2}$/;
  * @returns {TransactionFormOption[]}
  */
 export function getTransactionFormCategoryOptions(categoryOptions, type) {
-  return categoryOptions.filter((option) => (option.isActive ?? true) && option.type === type);
+  return categoryOptions
+    .filter((option) => (option.isActive ?? true) && option.type === type)
+    .sort((left, right) => {
+      const leftSortOrder = Number.isFinite(left.sortOrder)
+        ? Number(left.sortOrder)
+        : Number.MAX_SAFE_INTEGER;
+      const rightSortOrder = Number.isFinite(right.sortOrder)
+        ? Number(right.sortOrder)
+        : Number.MAX_SAFE_INTEGER;
+
+      if (leftSortOrder !== rightSortOrder) {
+        return leftSortOrder - rightSortOrder;
+      }
+
+      return String(left.label ?? '').localeCompare(String(right.label ?? ''), 'zh-Hans-CN');
+    });
 }
 
 /**
@@ -92,7 +111,10 @@ export function createTransactionFormDraft({
   const type = initialValues?.type ?? defaultType;
   const filteredCategories = getTransactionFormCategoryOptions(categoryOptions, type);
   const accountId = initialValues?.accountId ?? implicitAccountId ?? '';
-  const categoryId = selectCategoryValue(initialValues?.categoryId, filteredCategories);
+  const categoryId =
+    mode === 'edit'
+      ? selectCategoryValue(initialValues?.categoryId, filteredCategories)
+      : selectCategoryValue(initialValues?.categoryId, filteredCategories, { allowEmpty: true });
   const transactionAt = initialValues?.transactionAt ?? now ?? new Date().toISOString();
 
   return {
@@ -177,9 +199,13 @@ export function buildTransactionFormSubmitPayload(
  * @param {TransactionFormOption[]} options
  * @returns {string}
  */
-function selectCategoryValue(currentValue, options) {
+function selectCategoryValue(currentValue, options, { allowEmpty = false } = {}) {
   if (currentValue && options.some((option) => option.value === currentValue)) {
     return currentValue;
+  }
+
+  if (allowEmpty) {
+    return '';
   }
 
   return options[0]?.value ?? '';

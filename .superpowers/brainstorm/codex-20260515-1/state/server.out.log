@@ -1,0 +1,2 @@
+{"type":"server-started","port":54082,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:54082","screen_dir":"D:\\lpy\\system\\account-app\\account-app-mobile\\.superpowers\\brainstorm\\codex-20260515-1\\content","state_dir":"D:\\lpy\\system\\account-app\\account-app-mobile\\.superpowers\\brainstorm\\codex-20260515-1\\state"}
+{"type":"server-stopped","reason":"owner process exited"}

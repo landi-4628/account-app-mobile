@@ -6,6 +6,7 @@ import {
   createTransactionFormAmountState,
   createTransactionFormUiState,
   resolveTransactionDraftAmountInput,
+  resolveTransactionFormPrimaryAmountAction,
   selectTransactionFormDraftCategory,
   selectTransactionFormCategory,
 } from './transaction-form-ui-support.js';
@@ -122,4 +123,54 @@ test('only settled pure amounts sync back into the transaction draft', () => {
   amountState = applyTransactionFormAmountAction(amountState, { type: 'settle' });
 
   assert.equal(resolveTransactionDraftAmountInput(amountState), '15');
+});
+
+test('uses the primary amount action to settle expressions before submit', () => {
+  assert.deepEqual(
+    resolveTransactionFormPrimaryAmountAction(
+      {
+        expression: '8-6',
+        amount: '2',
+        canSubmit: false,
+      },
+      { submitLabel: '完成' }
+    ),
+    {
+      type: 'settle',
+      label: '=',
+      disabled: false,
+    }
+  );
+
+  assert.deepEqual(
+    resolveTransactionFormPrimaryAmountAction(
+      {
+        expression: '2',
+        amount: '2',
+        canSubmit: true,
+      },
+      { submitLabel: '完成' }
+    ),
+    {
+      type: 'submit',
+      label: '完成',
+      disabled: false,
+    }
+  );
+
+  assert.deepEqual(
+    resolveTransactionFormPrimaryAmountAction(
+      {
+        expression: '',
+        amount: '',
+        canSubmit: false,
+      },
+      { submitLabel: '完成' }
+    ),
+    {
+      type: 'submit',
+      label: '完成',
+      disabled: true,
+    }
+  );
 });

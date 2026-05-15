@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   getAccountingScreenContentStyle,
+  getAccountingScreenFillStyle,
   getAccountingScreenSafeAreaEdges,
 } from './screen-support.js';
 import { useAccountingTheme } from './use-accounting-theme.js';
@@ -30,7 +31,7 @@ export function AccountingScreen({
   const { colors, spacing } = useAccountingTheme();
   const styles = createStyles(colors, spacing);
   const content = (
-    <View style={[styles.content, contentContainerStyle]}>
+    <View style={[styles.content, getAccountingScreenFillStyle(!scrollable), contentContainerStyle]}>
       {children}
     </View>
   );

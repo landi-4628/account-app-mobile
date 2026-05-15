@@ -47,14 +47,17 @@ test('auth and profile management screens use feedback dialogs instead of inline
   assert.doesNotMatch(ledgerSource, /<InfoBanner/);
 });
 
-test('transaction screens route create-category auth failures into feedback dialogs', () => {
+test('transaction screens expose category management through the shared transaction form', () => {
   const newSource = readFileSync(newTransactionScreenPath, 'utf8');
   const editSource = readFileSync(editTransactionScreenPath, 'utf8');
   const formSource = readFileSync(transactionFormPath, 'utf8');
 
-  assert.match(newSource, /onCreateCategoryError=\{handleCreateCategoryError\}/);
-  assert.match(editSource, /onCreateCategoryError=\{handleCreateCategoryError\}/);
-  assert.match(formSource, /const saveNewCategory = React\.useCallback\(async \(\) => \{/);
-  assert.match(formSource, /await Promise\.resolve\(/);
-  assert.match(formSource, /onCreateCategoryError\?\.\(error\)/);
+  assert.match(newSource, /onManageCategories=\{\(entryType\) => \{/);
+  assert.match(newSource, /router\.push\(\{[\s\S]*pathname:\s*'\/categories'/);
+  assert.match(editSource, /onManageCategories=\{\(entryType\) => \{/);
+  assert.match(formSource, /onManageCategories\?:\s*\(\(entryType:\s*EntryType\)\s*=>\s*void\)\s*\|\s*undefined/);
+  assert.match(formSource, /Ionicons/);
+  assert.match(formSource, /settings-outline/);
+  assert.doesNotMatch(formSource, /saveNewCategory/);
+  assert.doesNotMatch(formSource, /onCreateCategoryError/);
 });

@@ -41,7 +41,9 @@ import {
 } from '../state/mock-app-snapshot.js';
 import { useSQLiteContext } from 'expo-sqlite';
 import { createCategoryRepository } from '../data/repositories/category-repository.js';
+import { createTransactionRepository } from '../data/repositories/transaction-repository.js';
 import { createLedgerDefinitionsApi } from '../lib/ledger-definitions-api.js';
+import { getCustomCategoryAppearance } from '../constants/accounting-categories.js';
 import {
   ledgerCategoryToInsert,
   repoCategoryRowToLedger,
@@ -82,7 +84,7 @@ import {
  * @property {() => void} closeQuickAdd
  * @property {(entryType: EntryType) => void} setSelectedEntryType
  * @property {(month: string) => void} setCurrentMonth
- * @property {(input: NewTransactionInput & { id?: string | undefined, syncStatus?: import('../types/accounting').SyncStatus | undefined }) => void} addTransaction
+ * @property {(input: NewTransactionInput & { id?: string | undefined, syncStatus?: import('../types/accounting').SyncStatus | undefined }) => Promise<void>} addTransaction
  * @property {(transactionId: string, updates: EditTransactionInput) => void} updateTransaction
  * @property {(transactionId: string) => void} deleteTransaction
  * @property {(transactionId: string, syncStatus: import('../types/accounting').SyncStatus, updatedAt?: string | undefined) => void} updateTransactionSyncStatus
@@ -127,6 +129,7 @@ import {
  * @property {boolean} canSyncRemotely
  * @property {boolean} syncInFlight
  * @property {boolean} ledgerBootstrapLoading
+ * @property {{ visible: boolean, label: string }} remoteActivity
  * @property {string[]} availableMonths
  * @property {MonthlyStatistics[]} seededMonthlyStatistics
  * @property {MockAppActions} actions
@@ -143,6 +146,21 @@ const MOCK_APP_AUTH_SESSION_STORAGE_KEY = 'mock-app-auth-session';
 const REMOTE_API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://192.168.5.119:3000';
 const AUTH_REQUIRED_MESSAGE = '请先登录';
+const REMOTE_ACTIVITY_COPY = {
+  'hydrate-user': '正在同步账户信息…',
+  'load-ledgers': '正在加载账本…',
+  'hydrate-ledger': '正在从云端同步账本数据…',
+  'manual-sync': '正在同步账本数据…',
+  'auto-sync': '正在自动同步…',
+  'transaction-sync': '正在同步记录…',
+  'create-ledger': '正在创建账本…',
+  'switch-ledger': '正在切换账本…',
+  'create-category': '正在同步分类…',
+  'toggle-category': '正在同步分类…',
+  'update-category': '正在同步分类…',
+  'delete-category': '正在同步分类…',
+};
+const LEDGER_BOOTSTRAP_ACTIVITY_KEYS = new Set(['hydrate-user', 'hydrate-ledger']);
 
 /**
  * @param {NewTransactionInput & { id?: string | undefined, syncStatus?: import('../types/accounting').SyncStatus | undefined }} input
@@ -170,6 +188,9 @@ export function MockAppProvider({ children }) {
   const [hydrated, setHydrated] = useState(false);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
   const [syncInFlight, setSyncInFlight] = useState(false);
+  const [remoteActivity, setRemoteActivity] = useState(
+    /** @type {Array<{ key: string, label: string }>} */ ([])
+  );
   const [authSession, setAuthSession] = useState(
     /** @type {AuthSession | null} */ (null)
   );
@@ -179,9 +200,10 @@ export function MockAppProvider({ children }) {
      *   timezone?: string | undefined,
      * }) | null} */ (null)
   );
+  const stateRef = useRef(state);
   const lastAuthenticatedUserIdRef = useRef(/** @type {string | null} */ (null));
   const skipNextRemoteLedgerPullRef = useRef(false);
-  const [ledgerBootstrapLoading, setLedgerBootstrapLoading] = useState(false);
+  const hydratedRemoteLedgerKeyRef = useRef(/** @type {string | null} */ (null));
   const [myLedgers, setMyLedgers] = useState(/** @type {RemoteLedger[]} */ ([]));
   const [currentLedgerId, setCurrentLedgerId] = useState(/** @type {string | null} */ (null));
 
@@ -215,6 +237,10 @@ export function MockAppProvider({ children }) {
 
   const sqlite = useSQLiteContext();
   const categoryRepo = useMemo(() => createCategoryRepository(/** @type {any} */ (sqlite)), [sqlite]);
+  const transactionRepo = useMemo(
+    () => createTransactionRepository(/** @type {any} */ (sqlite)),
+    [sqlite]
+  );
   const definitionsApi = useMemo(
     () =>
       createLedgerDefinitionsApi({
@@ -247,6 +273,35 @@ export function MockAppProvider({ children }) {
 
     return authSession.accessToken;
   }, [authSession?.accessToken]);
+
+  const runRemoteActivity = useCallback(async (key, work) => {
+    const activity = {
+      key,
+      label: REMOTE_ACTIVITY_COPY[key] ?? REMOTE_ACTIVITY_COPY['manual-sync'],
+    };
+
+    setRemoteActivity((current) => [...current, activity]);
+
+    try {
+      return await work();
+    } finally {
+      setRemoteActivity((current) => {
+        const index = current.findIndex((item) => item.key === key);
+
+        if (index === -1) {
+          return current;
+        }
+
+        const next = [...current];
+        next.splice(index, 1);
+        return next;
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const persistCustomCategory = useCallback(
     async (/** @type {LedgerCategory} */ category) => {
@@ -341,6 +396,17 @@ export function MockAppProvider({ children }) {
     [hydrateRemoteLedgerState, ledgerSyncApi, remoteAccessToken, remoteLedgerId]
   );
 
+  const triggerRemoteSync = useCallback(
+    async (nextState, activityKey) => {
+      if (!canSyncRemotely) {
+        return false;
+      }
+
+      return runRemoteActivity(activityKey, async () => syncRemoteState(nextState));
+    },
+    [canSyncRemotely, runRemoteActivity, syncRemoteState]
+  );
+
   const completeSessionFromAuthResponse = useCallback(
     /**
      * @param {{ session: AuthSession, user: RemoteAuthUser & { currentLedgerId?: string | null | undefined } }} result
@@ -375,12 +441,10 @@ export function MockAppProvider({ children }) {
         const token = result.session.accessToken;
         const ledgerId = resolveRemoteLedgerId(result.user);
         if (token != null && ledgerId != null) {
-          setLedgerBootstrapLoading(true);
-          try {
-            await hydrateRemoteLedgerState(token, baseline);
-          } finally {
-            setLedgerBootstrapLoading(false);
-          }
+          hydratedRemoteLedgerKeyRef.current = `${result.session.userId}:${ledgerId}`;
+          await runRemoteActivity('hydrate-ledger', async () =>
+            hydrateRemoteLedgerState(token, baseline)
+          );
         }
       } finally {
         skipNextRemoteLedgerPullRef.current = false;
@@ -388,7 +452,7 @@ export function MockAppProvider({ children }) {
 
       return result.user;
     },
-    [dispatch, hydrateRemoteLedgerState, reduceState, state]
+    [dispatch, hydrateRemoteLedgerState, reduceState, runRemoteActivity, state]
   );
 
   useEffect(() => {
@@ -447,7 +511,9 @@ export function MockAppProvider({ children }) {
 
     async function hydrateRemoteUser() {
       try {
-        const user = await authApi.getCurrentUser(currentAccessToken);
+        const user = await runRemoteActivity('hydrate-user', async () =>
+          authApi.getCurrentUser(currentAccessToken)
+        );
         if (active) {
           setRemoteUser(user);
         }
@@ -468,7 +534,7 @@ export function MockAppProvider({ children }) {
     return () => {
       active = false;
     };
-  }, [authApi, authSession?.accessToken, hydrated]);
+  }, [authApi, authSession?.accessToken, hydrated, runRemoteActivity]);
 
   useEffect(() => {
     if (!hydrated) {
@@ -487,7 +553,9 @@ export function MockAppProvider({ children }) {
       }
 
       try {
-        const result = await ledgerApi.listMyLedgers(remoteAccessToken);
+        const result = await runRemoteActivity('load-ledgers', async () =>
+          ledgerApi.listMyLedgers(remoteAccessToken)
+        );
         const nextCurrentLedgerId = result.currentLedgerId ?? result.ledgers[0]?.id ?? null;
 
         if (!active) {
@@ -514,7 +582,7 @@ export function MockAppProvider({ children }) {
     return () => {
       active = false;
     };
-  }, [hydrated, ledgerApi, remoteAccessToken, state.user]);
+  }, [hydrated, ledgerApi, remoteAccessToken, runRemoteActivity]);
 
   useEffect(() => {
     if (!hydrated) {
@@ -556,29 +624,39 @@ export function MockAppProvider({ children }) {
   }, [hydrated, ownerUserId, categoryRepo]);
 
   useEffect(() => {
-    if (!hydrated || !remoteAccessToken || remoteLedgerId == null) {
+    if (!hydrated) {
+      return;
+    }
+
+    if (!remoteAccessToken || remoteLedgerId == null) {
+      hydratedRemoteLedgerKeyRef.current = null;
       return;
     }
 
     let active = true;
     const currentAccessToken = remoteAccessToken;
+    const remoteLedgerKey = `${authSession?.userId ?? 'anonymous'}:${remoteLedgerId}`;
 
     async function hydrateRemoteLedger() {
+      if (hydratedRemoteLedgerKeyRef.current === remoteLedgerKey) {
+        return;
+      }
+
+      hydratedRemoteLedgerKeyRef.current = remoteLedgerKey;
+
       if (skipNextRemoteLedgerPullRef.current) {
         skipNextRemoteLedgerPullRef.current = false;
         return;
       }
 
-      setLedgerBootstrapLoading(true);
       try {
-        await hydrateRemoteLedgerState(currentAccessToken, state);
+        await runRemoteActivity('hydrate-ledger', async () =>
+          hydrateRemoteLedgerState(currentAccessToken, stateRef.current)
+        );
       } catch {
+        hydratedRemoteLedgerKeyRef.current = null;
         if (!active) {
           return;
-        }
-      } finally {
-        if (active) {
-          setLedgerBootstrapLoading(false);
         }
       }
     }
@@ -588,7 +666,14 @@ export function MockAppProvider({ children }) {
     return () => {
       active = false;
     };
-  }, [hydrated, hydrateRemoteLedgerState, remoteAccessToken, remoteLedgerId]);
+  }, [
+    authSession?.userId,
+    hydrated,
+    hydrateRemoteLedgerState,
+    remoteAccessToken,
+    remoteLedgerId,
+    runRemoteActivity,
+  ]);
 
   useEffect(() => {
     if (!hydrated) {
@@ -659,12 +744,12 @@ export function MockAppProvider({ children }) {
 
     try {
       if (syncPlan.type === 'remote') {
-        await syncRemoteState(state);
+        await runRemoteActivity('manual-sync', async () => syncRemoteState(state));
       }
     } finally {
       setSyncInFlight(false);
     }
-  }, [canSyncRemotely, ensureAuthenticated, state, syncInFlight, syncRemoteState, syncableTransactions.length]);
+  }, [canSyncRemotely, ensureAuthenticated, runRemoteActivity, state, syncInFlight, syncRemoteState, syncableTransactions.length]);
 
   const logout = useCallback(async () => {
     try {
@@ -684,7 +769,9 @@ export function MockAppProvider({ children }) {
 
   const loadMyLedgers = useCallback(async () => {
     const accessToken = ensureAuthenticated();
-    const result = await ledgerApi.listMyLedgers(accessToken);
+    const result = await runRemoteActivity('load-ledgers', async () =>
+      ledgerApi.listMyLedgers(accessToken)
+    );
     const nextCurrentLedgerId = result.currentLedgerId ?? result.ledgers[0]?.id ?? null;
     setMyLedgers(result.ledgers);
     setCurrentLedgerId(nextCurrentLedgerId);
@@ -695,7 +782,7 @@ export function MockAppProvider({ children }) {
       currentLedgerId: nextCurrentLedgerId,
       ledgers: result.ledgers,
     };
-  }, [ensureAuthenticated, ledgerApi]);
+  }, [ensureAuthenticated, ledgerApi, runRemoteActivity]);
 
   const createLedger = useCallback(
     async ({ name, baseCurrency }) => {
@@ -704,10 +791,12 @@ export function MockAppProvider({ children }) {
         throw new Error('Ledger name is required');
       }
       const accessToken = ensureAuthenticated();
-      const result = await ledgerApi.createLedger(accessToken, {
-        name: trimmedName,
-        baseCurrency,
-      });
+      const result = await runRemoteActivity('create-ledger', async () =>
+        ledgerApi.createLedger(accessToken, {
+          name: trimmedName,
+          baseCurrency,
+        })
+      );
       const nextLedgers = upsertLedger(myLedgers, result.ledger);
       const nextCurrentLedgerId = result.currentLedgerId ?? result.ledger.id;
       setMyLedgers(nextLedgers);
@@ -717,14 +806,16 @@ export function MockAppProvider({ children }) {
       );
       return result.ledger;
     },
-    [ensureAuthenticated, ledgerApi, myLedgers]
+    [ensureAuthenticated, ledgerApi, myLedgers, runRemoteActivity]
   );
 
   const switchLedger = useCallback(
     async (ledgerId) => {
       const targetLedgerId = String(ledgerId);
       const accessToken = ensureAuthenticated();
-      const result = await ledgerApi.switchLedger(accessToken, targetLedgerId);
+      const result = await runRemoteActivity('switch-ledger', async () =>
+        ledgerApi.switchLedger(accessToken, targetLedgerId)
+      );
       const nextCurrentLedgerId = result.currentLedgerId ?? targetLedgerId;
       setCurrentLedgerId(nextCurrentLedgerId);
       setRemoteUser((current) =>
@@ -734,7 +825,7 @@ export function MockAppProvider({ children }) {
         currentLedgerId: nextCurrentLedgerId,
       };
     },
-    [ensureAuthenticated, ledgerApi, myLedgers]
+    [ensureAuthenticated, ledgerApi, myLedgers, runRemoteActivity]
   );
 
   useEffect(() => {
@@ -749,8 +840,29 @@ export function MockAppProvider({ children }) {
       return;
     }
 
-    void syncPendingTransactions();
-  }, [autoSyncEnabled, hydrated, syncInFlight, syncPendingTransactions, syncableTransactions.length]);
+    void (async () => {
+      if (syncInFlight) {
+        return;
+      }
+
+      setSyncInFlight(true);
+
+      try {
+        await runRemoteActivity('auto-sync', async () => syncRemoteState(state));
+      } finally {
+        setSyncInFlight(false);
+      }
+    })();
+  }, [autoSyncEnabled, hydrated, runRemoteActivity, state, syncInFlight, syncRemoteState, syncableTransactions.length]);
+
+  const currentRemoteActivity = useMemo(
+    () => remoteActivity[remoteActivity.length - 1] ?? null,
+    [remoteActivity]
+  );
+  const ledgerBootstrapLoading = useMemo(
+    () => remoteActivity.some((activity) => LEDGER_BOOTSTRAP_ACTIVITY_KEYS.has(activity.key)),
+    [remoteActivity]
+  );
 
   const effectiveUser = useMemo(
     () => mergeAccountingUser(state.user, remoteUser ?? undefined, currentLedger ?? undefined),
@@ -777,6 +889,10 @@ export function MockAppProvider({ children }) {
       canSyncRemotely,
       syncInFlight,
       ledgerBootstrapLoading,
+      remoteActivity: {
+        visible: currentRemoteActivity != null,
+        label: currentRemoteActivity?.label ?? '',
+      },
       availableMonths: currentMonthData.availableMonths,
       seededMonthlyStatistics,
       actions: {
@@ -784,7 +900,7 @@ export function MockAppProvider({ children }) {
         closeQuickAdd: () => dispatch({ type: 'closeQuickAdd' }),
         setSelectedEntryType: (entryType) => dispatch({ type: 'setSelectedEntryType', entryType }),
         setCurrentMonth: (month) => dispatch({ type: 'setCurrentMonth', month }),
-        addTransaction: (input) => {
+        addTransaction: async (input) => {
           ensureAuthenticated();
           /** @type {MockAppAction} */
           const action = {
@@ -792,9 +908,10 @@ export function MockAppProvider({ children }) {
             transaction: createTransactionRecord(input),
           };
           const nextState = reduceState(state, action);
+          await transactionRepo.saveTransaction(action.transaction);
           dispatch(action);
           if (canSyncRemotely) {
-            void syncRemoteState(nextState);
+            void triggerRemoteSync(nextState, 'transaction-sync');
           }
         },
         updateTransaction: (transactionId, updates) => {
@@ -811,7 +928,7 @@ export function MockAppProvider({ children }) {
           const nextState = reduceState(state, action);
           dispatch(action);
           if (canSyncRemotely) {
-            void syncRemoteState(nextState);
+            void triggerRemoteSync(nextState, 'transaction-sync');
           }
         },
         deleteTransaction: (transactionId) => {
@@ -824,7 +941,7 @@ export function MockAppProvider({ children }) {
           const nextState = reduceState(state, action);
           dispatch(action);
           if (canSyncRemotely) {
-            void syncRemoteState(nextState);
+            void triggerRemoteSync(nextState, 'transaction-sync');
           }
         },
         updateTransactionSyncStatus: (transactionId, syncStatus, updatedAt) =>
@@ -839,7 +956,7 @@ export function MockAppProvider({ children }) {
         switchLedger,
         addCategory: async ({ name, type }) => {
           ensureAuthenticated();
-          const category = createCustomCategoryRecord(name, type);
+          const category = createCustomCategoryRecord(name, type, state.categories);
           /** @type {MockAppAction} */
           const action = {
             type: 'addCategory',
@@ -855,7 +972,8 @@ export function MockAppProvider({ children }) {
               return category;
             }
 
-            try {
+            await runRemoteActivity('create-category', async () => {
+              try {
               const res = await definitionsApi.createCategory(accessToken, {
                 client_id: category.id,
                 name: category.name,
@@ -878,13 +996,19 @@ export function MockAppProvider({ children }) {
               // 远端失败时保留本地记录
             }
 
-            void syncRemoteState(working);
+            await syncRemoteState(working);
+            });
           }
 
           return category;
         },
         toggleCategoryActive: async (categoryId, isActive) => {
           ensureAuthenticated();
+          const existingCategory = state.categories.find((category) => category.id === categoryId);
+          if (!existingCategory) {
+            return;
+          }
+
           /** @type {MockAppAction} */
           const action = {
             type: 'toggleCategoryActive',
@@ -899,22 +1023,29 @@ export function MockAppProvider({ children }) {
           }
 
           if (canSyncRemotely && cat?.remoteId && remoteAccessToken) {
-            try {
-              await definitionsApi.updateCategory(remoteAccessToken, cat.remoteId, {
-                is_deleted: !isActive,
-                ...(isActive ? { deleted_at: null } : { deleted_at: new Date().toISOString() }),
-              });
-            } catch {
-              // ignore
-            }
+            await runRemoteActivity('toggle-category', async () => {
+              try {
+                await definitionsApi.updateCategory(remoteAccessToken, cat.remoteId, {
+                  is_deleted: !isActive,
+                  ...(isActive ? { deleted_at: null } : { deleted_at: new Date().toISOString() }),
+                });
+              } catch {
+                // ignore
+              }
 
-            void syncRemoteState(working);
+              await syncRemoteState(working);
+            });
           } else if (canSyncRemotely) {
-            void syncRemoteState(working);
+            await runRemoteActivity('toggle-category', async () => syncRemoteState(working));
           }
         },
         updateCategory: async (categoryId, updates) => {
           ensureAuthenticated();
+          const existingCategory = state.categories.find((category) => category.id === categoryId);
+          if (!existingCategory?.isCustom) {
+            return;
+          }
+
           /** @type {MockAppAction} */
           const action = {
             type: 'updateCategory',
@@ -929,21 +1060,30 @@ export function MockAppProvider({ children }) {
           }
 
           if (canSyncRemotely && cat?.remoteId && remoteAccessToken) {
-            try {
-              await definitionsApi.updateCategory(remoteAccessToken, cat.remoteId, {
-                name: updates.name ?? cat.name,
-                kind: updates.type ?? cat.type,
-                color: updates.color ?? cat.color,
-              });
-            } catch {
-              // ignore
-            }
+            await runRemoteActivity('update-category', async () => {
+              try {
+                await definitionsApi.updateCategory(remoteAccessToken, cat.remoteId, {
+                  name: updates.name ?? cat.name,
+                  kind: updates.type ?? cat.type,
+                  color: updates.color ?? cat.color,
+                });
+              } catch {
+                // ignore
+              }
 
-            void syncRemoteState(working);
+              await syncRemoteState(working);
+            });
+          } else if (canSyncRemotely) {
+            await runRemoteActivity('update-category', async () => syncRemoteState(working));
           }
         },
         deleteCategory: async (categoryId) => {
           ensureAuthenticated();
+          const existingCategory = state.categories.find((category) => category.id === categoryId);
+          if (!existingCategory?.isCustom) {
+            return;
+          }
+
           /** @type {MockAppAction} */
           const action = { type: 'deleteCategory', categoryId };
           let working = reduceState(state, action);
@@ -955,13 +1095,17 @@ export function MockAppProvider({ children }) {
           }
 
           if (canSyncRemotely && cat?.remoteId && remoteAccessToken) {
-            try {
-              await definitionsApi.deleteCategory(remoteAccessToken, cat.remoteId);
-            } catch {
-              // ignore
-            }
+            await runRemoteActivity('delete-category', async () => {
+              try {
+                await definitionsApi.deleteCategory(remoteAccessToken, cat.remoteId);
+              } catch {
+                // ignore
+              }
 
-            void syncRemoteState(working);
+              await syncRemoteState(working);
+            });
+          } else if (canSyncRemotely) {
+            await runRemoteActivity('delete-category', async () => syncRemoteState(working));
           }
         },
         setAutoSyncEnabled: (enabled) => setAutoSyncEnabled(enabled),
@@ -1005,6 +1149,7 @@ export function MockAppProvider({ children }) {
       currentMonthData,
       currentLedger,
       definitionsApi,
+      currentRemoteActivity,
       ensureAuthenticated,
       effectiveUser,
       hydrateRemoteLedgerState,
@@ -1020,6 +1165,9 @@ export function MockAppProvider({ children }) {
       state,
       switchLedger,
       syncInFlight,
+      triggerRemoteSync,
+      transactionRepo,
+      runRemoteActivity,
       syncRemoteState,
       syncPendingTransactions,
       syncSummary,
@@ -1037,15 +1185,12 @@ export function MockAppProvider({ children }) {
     MockAppContext.Provider,
     { value },
     children,
-    React.createElement(LedgerBootstrapBackdrop, { key: 'ledger-bootstrap' })
+    React.createElement(RemoteActivityBackdrop, { key: 'remote-activity' })
   );
 }
 
-const ledgerBootstrapLoadingCopy =
-  '\u6b63\u5728\u4ece\u4e91\u7aef\u540c\u6b65\u8d26\u672c\u6570\u636e\u2026';
-
-function LedgerBootstrapBackdrop() {
-  const { ledgerBootstrapLoading } = useMockApp();
+function RemoteActivityBackdrop() {
+  const { remoteActivity } = useMockApp();
   const theme = useAccountingTheme();
 
   /** @type {import('react-native').ViewStyle} */
@@ -1068,7 +1213,7 @@ function LedgerBootstrapBackdrop() {
   return React.createElement(
     Modal,
     {
-      visible: ledgerBootstrapLoading,
+      visible: remoteActivity.visible,
       transparent: true,
       animationType: 'fade',
       statusBarTranslucent: true,
@@ -1077,7 +1222,7 @@ function LedgerBootstrapBackdrop() {
       View,
       { style: fillRoot },
       React.createElement(ActivityIndicator, { size: 'large', color: '#ffffff' }),
-      React.createElement(Text, { style: captionText }, ledgerBootstrapLoadingCopy)
+      React.createElement(Text, { style: captionText }, remoteActivity.label)
     )
   );
 }
@@ -1129,15 +1274,22 @@ function resolveRemoteLedgerId(remoteUser) {
 /**
  * @param {string} name
  * @param {EntryType} type
+ * @param {LedgerCategory[]} existingCategories
  * @returns {LedgerCategory}
  */
-function createCustomCategoryRecord(name, type) {
+function createCustomCategoryRecord(name, type, existingCategories) {
+  const existingCount = existingCategories.filter((category) => category.type === type).length;
+  const appearance = getCustomCategoryAppearance(type, existingCount);
+
   return {
     id: `cat-custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name: name.trim(),
     type,
     isActive: true,
     isCustom: true,
+    color: appearance.color,
+    iconName: appearance.iconName,
+    sortOrder: existingCount + 100,
   };
 }
 

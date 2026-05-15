@@ -34,7 +34,9 @@ test('builds an empty unauthenticated foundation state', () => {
   assert.equal(state.user.name, '未登录');
   assert.equal(state.user.email, '');
   assert.equal(state.implicitLedgerAccountId, '');
-  assert.deepEqual(state.categories, []);
+  assert.equal(state.categories.length > 30, true);
+  assert.equal(state.categories.some((category) => category.id === 'cat-food'), true);
+  assert.equal(state.categories.some((category) => category.id === 'cat-salary'), true);
   assert.deepEqual(state.transactions, []);
   assert.equal(monthData.summary.income, 0);
   assert.equal(monthData.summary.expense, 0);
@@ -252,6 +254,7 @@ test('selects only custom categories for persistence', () => {
         type: 'expense',
         isActive: true,
         isCustom: true,
+        sortOrder: state.categories.find((category) => category.id === 'cat-custom-snacks')?.sortOrder,
       },
     ],
     accounts: [],
@@ -271,8 +274,8 @@ test('merges persisted custom definitions into an empty baseline', () => {
     ],
   });
 
-  assert.equal(merged.categories.length, 1);
-  assert.equal(merged.categories[0].id, 'cat-custom-snacks');
+  assert.equal(merged.categories.some((category) => category.id === 'cat-custom-snacks'), true);
+  assert.equal(merged.categories.some((category) => category.id === 'cat-food'), true);
   assert.equal(merged.implicitLedgerAccountId, '');
 });
 
@@ -313,7 +316,7 @@ test('hydrates a persisted snapshot onto the empty baseline', () => {
   assert.equal(state.selectedEntryType, 'income');
   assert.equal(state.implicitLedgerAccountId, 'acc-bank');
   assert.equal(state.transactions[0].id, 'tx-restored');
-  assert.equal(state.categories[0].id, 'cat-custom-bonus');
+  assert.equal(state.categories.some((category) => category.id === 'cat-custom-bonus'), true);
   assert.equal(state.syncUpdatedAt, '2026-05-13T11:00:00+08:00');
 });
 
@@ -331,6 +334,8 @@ test('resetState restores the empty unauthenticated baseline', () => {
   const reset = mockAppReducer(withData, { type: 'resetState' });
 
   assert.equal(reset.user.name, '未登录');
-  assert.deepEqual(reset.categories, []);
+  assert.equal(reset.categories.some((category) => category.id === 'cat-food'), true);
+  assert.equal(reset.categories.some((category) => category.id === 'cat-salary'), true);
+  assert.equal(reset.categories.some((category) => category.id === 'cat-custom-reset'), false);
   assert.deepEqual(reset.transactions, []);
 });

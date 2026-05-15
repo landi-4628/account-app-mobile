@@ -43,6 +43,28 @@ export function formatDatePickerLabel(value) {
 
 /**
  * @param {string} value
+ * @param {string} maxValue
+ * @returns {boolean}
+ */
+export function isDateInputAfter(value, maxValue) {
+  return formatDatePickerValue(value) > formatDatePickerValue(maxValue);
+}
+
+/**
+ * Keeps Android calendar day numbers visually centered by removing
+ * the platform's extra font padding.
+ *
+ * @returns {{ includeFontPadding: false, textAlign: 'center' }}
+ */
+export function createCalendarDayLabelTextStyle() {
+  return {
+    includeFontPadding: false,
+    textAlign: 'center',
+  };
+}
+
+/**
+ * @param {string} value
  * @param {number} monthDelta
  * @returns {string}
  */

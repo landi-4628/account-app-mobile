@@ -82,6 +82,29 @@ export function resolveTransactionDraftAmountInput(state) {
 
 /**
  * @param {{ expression: string, amount: string, canSubmit: boolean }} state
+ * @param {{ submitLabel: string }} options
+ * @returns {{ type: 'settle' | 'submit', label: string, disabled: boolean }}
+ */
+export function resolveTransactionFormPrimaryAmountAction(state, { submitLabel }) {
+  const hasPendingExpression = Boolean(state.amount) && state.expression !== state.amount;
+
+  if (hasPendingExpression) {
+    return {
+      type: 'settle',
+      label: '=',
+      disabled: false,
+    };
+  }
+
+  return {
+    type: 'submit',
+    label: submitLabel,
+    disabled: !state.canSubmit,
+  };
+}
+
+/**
+ * @param {{ expression: string, amount: string, canSubmit: boolean }} state
  * @param {{
  *   type: 'append-key' | 'backspace' | 'clear' | 'settle',
  *   key?: string | undefined,

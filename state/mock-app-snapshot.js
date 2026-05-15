@@ -1,3 +1,4 @@
+import { mergeWithBuiltInCategories } from '../constants/accounting-categories.js';
 /**
  * @typedef {import('./mock-app-state.js').MockAppState} MockAppState
  * @typedef {import('../types/accounting').EntryType} EntryType
@@ -90,7 +91,9 @@ export function applyMockAppSnapshot(initialState, snapshot) {
     selectedEntryType: snapshot.selectedEntryType,
     implicitLedgerAccountId: snapshot.implicitLedgerAccountId,
     transactions: snapshot.transactions.map((transaction) => ({ ...transaction })),
-    categories: snapshot.categories.map((category) => ({ ...category })),
+    categories: mergeWithBuiltInCategories(
+      snapshot.categories.map((category) => ({ ...category }))
+    ),
     syncUpdatedAt: snapshot.syncUpdatedAt,
   };
 }

@@ -5,10 +5,11 @@ import { getTransactionFormContainerStyle } from './transaction-form-layout-supp
 
 test('returns a flat transaction form container without card chrome', () => {
   const spacing = {
+    sm: 12,
     lg: 20,
   };
 
   assert.deepEqual(getTransactionFormContainerStyle(spacing), {
-    gap: 20,
+    gap: 12,
   });
 });

@@ -20,6 +20,9 @@
  * @property {string} brand
  * @property {string} brandSoft
  * @property {string} brandContrast
+ * @property {string} highlight
+ * @property {string} highlightSoft
+ * @property {string} highlightContrast
  * @property {string} income
  * @property {string} expense
  * @property {string} warning
@@ -70,6 +73,9 @@ export const accountingLightColors = {
   brand: '#2F8F83',
   brandSoft: '#DFF3EE',
   brandContrast: '#1D5E55',
+  highlight: '#FFD84D',
+  highlightSoft: '#FFF3B7',
+  highlightContrast: '#5B4A00',
   income: '#2E9B62',
   expense: '#E07A5F',
   warning: '#D97706',
@@ -95,6 +101,9 @@ export const accountingDarkColors = {
   brand: '#58B6A8',
   brandSoft: '#20413B',
   brandContrast: '#9FE2D8',
+  highlight: '#FFD84D',
+  highlightSoft: '#5B4A00',
+  highlightContrast: '#FFF3B7',
   income: '#55C487',
   expense: '#F19A80',
   warning: '#F2B45D',

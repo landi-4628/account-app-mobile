@@ -263,7 +263,9 @@ test('applies a valid snapshot onto initial state without replacing seeded found
   assert.equal(restoredState.quickAddOpen, false);
   assert.equal(restoredState.implicitLedgerAccountId, 'acc-bank');
   assert.deepEqual(restoredState.transactions, snapshot.transactions);
-  assert.deepEqual(restoredState.categories, snapshot.categories);
+  assert.equal(restoredState.categories.some((category) => category.id === 'cat-food'), true);
+  assert.equal(restoredState.categories.some((category) => category.id === 'cat-salary'), true);
+  assert.equal(restoredState.categories.some((category) => category.id === 'cat-restored-bonus'), true);
   assert.equal(restoredState.syncUpdatedAt, '2026-05-13T11:00:00+08:00');
   assert.deepEqual(restoredState.seedTransactions, initialState.seedTransactions);
   assert.deepEqual(restoredState.statisticsByMonth, initialState.statisticsByMonth);

@@ -8,6 +8,13 @@ import { resolveImplicitAccountId } from '@/lib/resolve-implicit-account-id.js';
 import { useMockApp } from '@/providers/mock-app-provider';
 
 const DEFAULT_TIME_ZONE_OFFSET = '+08:00';
+const editTransactionHeaderOptions = {
+  title: accountingCopy.actions.edit,
+  headerTitleAlign: 'left',
+  headerTitleContainerStyle: {
+    left: 44,
+  },
+};
 
 function buildCategoryOptions(categories) {
   return categories.map((category) => ({
@@ -15,6 +22,10 @@ function buildCategoryOptions(categories) {
     label: category.name ?? category.id,
     type: category.type,
     isActive: category.isActive,
+    color: category.color,
+    iconName: category.iconName,
+    isSystem: category.isSystem,
+    sortOrder: category.sortOrder,
   }));
 }
 
@@ -87,27 +98,10 @@ export default function EditTransactionScreen() {
       );
     }
   }, [actions, router, transactionId]);
-
-  const handleCreateCategoryError = React.useCallback(
-    (error) => {
-      setDialogState(
-        error instanceof Error && error.message === '请先登录'
-          ? buildAuthRequiredDialogState(() => {
-              router.replace('/auth/login');
-            })
-          : {
-              title: error instanceof Error ? error.message : '新增分类失败',
-              actions: [{ label: '知道了', tone: 'primary' }],
-            }
-      );
-    },
-    [router]
-  );
-
   if (!transactionId || !transaction) {
     return (
       <>
-        <Stack.Screen options={{ title: accountingCopy.actions.edit }} />
+        <Stack.Screen options={editTransactionHeaderOptions} />
         <AccountingScreen>
           <EmptyState
             title={accountingCopy.form.notFoundTitle}
@@ -122,7 +116,7 @@ export default function EditTransactionScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: accountingCopy.actions.edit }} />
+      <Stack.Screen options={editTransactionHeaderOptions} />
       <AccountingScreen>
         <TransactionForm
           categoryOptions={categoryOptions}
@@ -130,8 +124,12 @@ export default function EditTransactionScreen() {
           defaultSyncStatus="pending"
           initialValues={transaction}
           mode="edit"
-          onCreateCategory={actions.addCategory}
-          onCreateCategoryError={handleCreateCategoryError}
+          onManageCategories={(entryType) => {
+            router.push({
+              pathname: '/categories',
+              params: { entryType },
+            });
+          }}
           submitLabel={accountingCopy.actions.save}
           timeZoneOffset={DEFAULT_TIME_ZONE_OFFSET}
           deleteLabel={accountingCopy.actions.delete}
